@@ -2,9 +2,10 @@ import logging
 import os
 import secrets
 import sys
+
 import yaml
 
-VERSION = os.getenv('MANDIR_VERSION', '1.0.0')
+VERSION = os.getenv('DICT_VERSION', '1.0.0')
 DEBUG = os.getenv("DEBUG", 'True').lower() in ('true', '1', 't')
 LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(levelname)s in %(module)s: %(message)s')
 LOG_DATE_FORMAT = os.getenv('LOG_DATE_FORMAT', '%d.%m.%Y %H:%M:%S')
@@ -23,6 +24,8 @@ MONGO_PORT = int(os.getenv('MONGO_PORT', 27017))
 MONGO_USERNAME = os.getenv('MONGO_USERNAME', 'root')
 MONGO_PASSWORD = os.getenv('MONGO_PASSWORD', 'Egalite1651.')
 MONGO_COLLATION_CS = {"locale": "cs@collation=search"}
+
+AGENDA_CITES = 'cites'
 
 
 class Singleton(type):
@@ -53,6 +56,22 @@ class Log(object, metaclass=Singleton):
         self.logger.info('LOG created')
 
 
+class Context(object, metaclass=Singleton):
+    def __init__(self, api_key=None, user_name=None, agenda=None):
+        self.api_key = api_key
+        self.user_name = user_name
+        self.agenda = agenda
+        self.authenticated = False
+        LOG.logger.info('CONTEXT created')
+
+    def clear(self):
+        self.api_key = None
+        self.user_name = None
+        self.agenda = None
+        self.authenticated = False
+        LOG.logger.info('CONTEXT cleared')
+
+
 def init_config():
     if os.path.isfile(CONFIG_FILE_PATH):
         with open(CONFIG_FILE_PATH, "r") as yamlfile:
@@ -68,7 +87,9 @@ def init_config():
 
 def create_config():
     out = {
-        'api_keys': init_api_keys('dictionaries')
+        AGENDA_CITES: {
+            'api_keys': init_api_keys(AGENDA_CITES)
+        },
     }
     return out
 
@@ -89,5 +110,26 @@ def generate_api_key(length: int):
     return secrets.token_urlsafe(length)
 
 
+def check_api_key(api_key):
+    CONTEXT.clear()
+    for agenda in CONFIG.keys():
+        if 'api_keys' not in CONFIG[agenda]:
+            continue
+        for ak in CONFIG[agenda]['api_keys']:
+            if api_key in ak.keys():
+                CONTEXT.api_key = api_key
+                CONTEXT.agenda = agenda
+                CONTEXT.user_name = ak[api_key]
+                CONTEXT.authenticated = True
+                break
+    return CONTEXT
+
+
+def set_ext_logger(ext_logger):
+    if ext_logger is not None:
+        LOG.logger = ext_logger
+
+
 LOG = Log()
 CONFIG = init_config()
+CONTEXT = Context()

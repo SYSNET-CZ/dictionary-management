@@ -1,0 +1,736 @@
+openapi: 3.0.0
+info:
+  title: SYSNET Managed Dictionaries API
+  description: "REST API of the SYSNET managed dictionaries (code lists) system. \n\
+    Primarily designed for the CITES Registry.\n"
+  contact:
+    email: info@sysnet.cz
+  license:
+    name: GNU Affero General Public License v3.0
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+  version: 1.0.0
+servers:
+- url: https://virtserver.swaggerhub.com/SYSNET/dictionary/1.0.0
+  description: SwaggerHub API Auto Mocking
+tags:
+- name: admins
+  description: Secured Admin-only calls
+- name: developers
+  description: Operations available to regular developers
+- name: public
+  description: Operation available to public users
+paths:
+  /info:
+    get:
+      tags:
+      - developers
+      summary: gets service info
+      description: |
+        Returns service info - status, technology versions, etc.
+      operationId: info_api
+      responses:
+        "200":
+          description: information object
+          content:
+            application/json:
+              schema:
+                type: string
+                example: Mock data
+                default: Default info
+                x-content-type: application/json
+        "204":
+          description: no data returned
+        "400":
+          description: bad input parameter
+        "501":
+          description: not implemented
+      x-openapi-router-controller: swagger_server.controllers.developers_controller
+  /{dictionary}:
+    get:
+      tags:
+      - public
+      summary: searches dictionary (autocomplete)
+      description: "By passing in the appropriate options, you can search for\navailable\
+        \ descriptors in the system. \n"
+      operationId: search_dictionary
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      - name: query
+        in: query
+        description: pass an optional search string for looking up dictionary
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: active
+        in: query
+        description: return active/inactive descriptors
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: boolean
+      - name: skip
+        in: query
+        description: number of records to skip for pagination
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          format: int32
+      - name: limit
+        in: query
+        description: maximum number of records to return
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 50
+          minimum: 0
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: search results matching criteria
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Descriptor'
+                x-content-type: application/json
+        "204":
+          description: no data returned
+        "400":
+          description: bad input parameter
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "501":
+          description: not implemented
+      x-openapi-router-controller: swagger_server.controllers.public_controller
+    post:
+      tags:
+      - admins
+      summary: adds an descriptor
+      description: Adds a descriptor to the system
+      operationId: add_descriptor
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      requestBody:
+        description: Descriptor to add
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Descriptor'
+      responses:
+        "201":
+          description: item created
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "409":
+          description: an existing descriptor already exists
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+  /{dictionary}/{key}:
+    get:
+      tags:
+      - public
+      summary: gets a descriptor by key
+      description: |
+        By passing the key or alternate key, you can get the descriptor
+      operationId: get_descriptor
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      - name: key
+        in: path
+        description: Descriptor key or alternate key
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: AT
+      responses:
+        "200":
+          description: descriptor returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Descriptor'
+        "204":
+          description: no data returned
+        "400":
+          description: bad input parameter
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "501":
+          description: not implemented
+      x-openapi-router-controller: swagger_server.controllers.public_controller
+    put:
+      tags:
+      - admins
+      summary: replaces a descriptor
+      description: |
+        By passing the key or alternate key, you can replace the descriptor
+      operationId: put_descriptor
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      - name: key
+        in: path
+        description: Descriptor key or alternate key
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: AT
+      requestBody:
+        description: Descriptor to replace
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Descriptor'
+      responses:
+        "200":
+          description: Descriptor updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Descriptor'
+        "204":
+          description: "no data returned, descriptor not found"
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
+          description: Descriptor not found
+        "409":
+          description: Conflict
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+    delete:
+      tags:
+      - admins
+      summary: removes a descriptor
+      description: |
+        By passing the key or alternate key, you can remove the descriptor
+      operationId: delete_descriptor
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      - name: key
+        in: path
+        description: Descriptor key or alternate key
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: AT
+      responses:
+        "200":
+          description: Descriptor deleted
+          content:
+            application/json:
+              schema:
+                type: boolean
+                example: true
+                x-content-type: application/json
+        "204":
+          description: "no data returned, descriptor not found"
+        "400":
+          description: bad input parameter
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
+          description: Descriptor not found
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+  /{dictionary}/{key}/activate:
+    get:
+      tags:
+      - admins
+      summary: activates/deactivates the descriptor by key
+      description: |
+        By passing the key or alternate key, you can get the descriptor
+      operationId: activate_descriptor
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      - name: key
+        in: path
+        description: Descriptor key or alternate key
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: AT
+      - name: active
+        in: query
+        description: activate/deactivate descriptor
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: boolean
+      responses:
+        "200":
+          description: Descriptor updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Descriptor'
+        "204":
+          description: "no data returned, descriptor not found"
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
+          description: Descriptor not found
+        "409":
+          description: Conflict
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+  /{dictionary}/import:
+    post:
+      tags:
+      - admins
+      summary: imports a dictionary
+      description: "Imports whole dictionary to the system. Ignores data field 'dictionary'\
+        \ \n"
+      operationId: import_dictionary
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      - name: replace
+        in: query
+        description: replaces existing dictionary
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: boolean
+      requestBody:
+        description: Array of descriptors to import
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Descriptor'
+      responses:
+        "200":
+          description: descriptors imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplyImported'
+        "201":
+          description: dictionary created
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "409":
+          description: an existing dictionary already exists
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+  /import:
+    post:
+      tags:
+      - admins
+      summary: imports descriptors of several directories
+      description: |
+        Imports descriptors of several directories to the system
+      operationId: import_descriptors
+      parameters:
+      - name: replace
+        in: query
+        description: replaces whole database
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: boolean
+      requestBody:
+        description: Array of descriptors to import
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Descriptor'
+      responses:
+        "200":
+          description: descriptors imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplyImported'
+        "201":
+          description: descriptors imported
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "409":
+          description: any of descriptors already exists
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+  /{dictionary}/export:
+    get:
+      tags:
+      - admins
+      summary: exports all descriptors from specifies dictionary
+      description: |
+        By passing the dictionary name, you can get all descriptors of it
+      operationId: export_dictionary
+      parameters:
+      - name: dictionary
+        in: path
+        description: Dictionary identifier
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+          example: country
+      responses:
+        "200":
+          description: exported data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Descriptor'
+                x-content-type: application/json
+        "204":
+          description: "no data returned, directory not found"
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
+          description: Directory not found
+        "409":
+          description: Conflict
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+  /export:
+    get:
+      tags:
+      - admins
+      summary: exports all descriptors from the system
+      description: |
+        You can get all descriptors
+      operationId: export_all
+      responses:
+        "200":
+          description: exported data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Descriptor'
+                x-content-type: application/json
+        "204":
+          description: no data returned
+        "400":
+          description: "invalid input, object invalid"
+        "401":
+          description: API key is missing or invalid
+          headers:
+            WWW_Authenticate:
+              style: simple
+              explode: false
+              schema:
+                type: string
+        "404":
+          description: No data found
+        "409":
+          description: Conflict
+        "501":
+          description: not implemented
+      security:
+      - apiKey: []
+      x-openapi-router-controller: swagger_server.controllers.admins_controller
+components:
+  schemas:
+    ImportedItem:
+      type: object
+      properties:
+        dictionary:
+          type: string
+          description: Řízený slovník
+          example: country
+        key:
+          type: string
+          description: Identifikátor deskriptoru
+          example: AT
+        status:
+          type: string
+          description: Stav importu
+          example: replaced
+          enum:
+          - added
+          - replaced
+          - rejected
+      description: Identifikace importovaného deskriptoru
+      example:
+        dictionary: country
+        key: AT
+        status: replaced
+    ReplyImported:
+      type: object
+      properties:
+        count_added:
+          type: integer
+          description: počet nově přidaných deskriptorů
+          example: 25
+        count_replaced:
+          type: integer
+          description: počet nahrazených deskriptorů
+          example: 5
+        count_rejected:
+          type: integer
+          description: počet zamítnutých deskriptorů
+          example: 10
+        added:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportedItem'
+        replaced:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportedItem'
+        rejected:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportedItem'
+      description: Výsledky importu
+      example:
+        count_replaced: 5
+        added:
+        - dictionary: country
+          key: AT
+          status: replaced
+        - dictionary: country
+          key: AT
+          status: replaced
+        rejected:
+        - null
+        - null
+        count_added: 25
+        replaced:
+        - null
+        - null
+        count_rejected: 10
+    Descriptor:
+      required:
+      - dictionary
+      - key
+      - values
+      type: object
+      properties:
+        key:
+          type: string
+          description: Hlavní klíč deskriptoru
+          example: AT
+        key_alt:
+          type: string
+          description: Alternativní klíč deskriptoru
+          example: AUT
+        dictionary:
+          type: string
+          description: Kód řízeného slovníku
+          example: country
+        active:
+          type: boolean
+          description: Descriptor is active
+          example: true
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/DescriptorValue'
+      description: Deskriptor řízeného slovníku
+      example:
+        key_alt: AUT
+        dictionary: country
+        values:
+        - lang: cs
+          value: Rakousko
+        - lang: cs
+          value: Rakousko
+        active: true
+        key: AT
+    DescriptorValue:
+      required:
+      - lang
+      - value
+      type: object
+      properties:
+        lang:
+          type: string
+          description: jazyk hpodnoty deskriptoru
+          example: cs
+        value:
+          type: string
+          description: Hodnota deskriptoru pro jazyk
+          example: Rakousko
+      example:
+        lang: cs
+        value: Rakousko
+  responses:
+    UnauthorizedError:
+      description: API key is missing or invalid
+      headers:
+        WWW_Authenticate:
+          style: simple
+          explode: false
+          schema:
+            type: string
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      name: X-API-KEY
+      in: header
+      x-apikeyInfoFunc: swagger_server.controllers.authorization_controller.check_apiKey
+

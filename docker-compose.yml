@@ -1,0 +1,71 @@
+version: '3'
+
+services:
+  dict:
+    image: sysnetcz/dictionaries:${DICT_VERSION}
+#    container_name: dict
+    restart: unless-stopped
+    volumes:
+      - ./config:${CONFIG_DIRECTORY}
+    environment:
+      - TZ=Europe/Prague
+      - DICT_VERSION=${DICT_VERSION}
+      - CONFIG_DIRECTORY=${CONFIG_DIRECTORY}
+      - CONFIG_FILE_NAME=${CONFIG_FILE_NAME}
+      - MONGO_DATABASE=dictionaries
+      - MONGO_COLLECTION=descriptor
+      - MONGO_HOST=db
+      - MONGO_PORT=27017
+      - MONGO_USERNAME=${MONGO_USERNAME}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - FLASK_DEBUG=false
+    networks:
+      default:
+        aliases:
+          - dictionaries
+          - dict
+    ports:
+      - 127.0.0.1:18080:8080
+    depends_on:
+      - db
+  db:
+    image: mongo
+#    container_name: mongo-db
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:37017:27017
+    environment:
+      - TZ=Europe/Prague
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    volumes:
+      - data:/data
+    networks:
+      default:
+        aliases:
+          - mongo
+          - db
+  express:
+    image: mongo-express
+#    container_name: mongo-express
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:18081:8081
+    environment:
+      - TZ=Europe/Prague
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_USERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_PASSWORD}
+      - ME_CONFIG_OPTIONS_EDITORTHEME=cobalt
+      - ME_CONFIG_MONGODB_SERVER=db
+    depends_on:
+      - db
+
+volumes:
+  data:
+    driver: local
+  logs:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
