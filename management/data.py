@@ -1,5 +1,6 @@
 from mongoengine import Document, StringField, connect, OperationError, ValidationError, disconnect, DoesNotExist, \
     NotUniqueError, BooleanField
+from pymongo import MongoClient
 from pymongo.errors import OperationFailure, PyMongoError
 
 from settings import MONGO_CLIENT_ALIAS, MONGO_DATABASE, MONGO_HOST, MONGO_PORT, MONGO_USERNAME, \
@@ -43,7 +44,9 @@ class DictionaryFactory(metaclass=Singleton):
         self.dictionaries = {}
         self.info = {}
         self.qs = None
+        self.db_initialized = False
         try:
+            self.init_database()
             self.connection = connect(
                 db=self.database,
                 alias='mandir-alias',
@@ -59,6 +62,34 @@ class DictionaryFactory(metaclass=Singleton):
             self.connection.close()
             disconnect()
             LOG.logger.info('DictionaryFactory deleted')
+
+    def init_database(self):
+        client = MongoClient(
+            host=self.host, port=self.port, username=self.username, password=self.password, authSource='admin')
+        dbnames = client.list_database_names()
+        if MONGO_DATABASE in dbnames:
+            LOG.logger.info('Dictionary database ready to use')
+            client.close()
+            del client
+            self.db_initialized = True
+            return False
+        db = client[MONGO_DATABASE]
+        col = db['descriptor']
+        init_desc = {
+            'identifier': 'init*0',
+            'dictionary': 'init',
+            'key': '0',
+            'key_alt': '00000',
+            'value': 'Databáze slovníků inicializována',
+            'value_en': 'Dictionary database initialized',
+            'active': False
+        }
+        desc = col.insert_one(init_desc)
+        LOG.logger.info('Dictionary database initiated {}'.format(str(desc.inserted_id)))
+        client.close()
+        del client
+        self.db_initialized = True
+        return True
 
     def create_descriptor(self, dictionary=None, key=None, json_data=None, active=True, descriptor=None, **kwargs):
         self.current_descriptor = DescriptorItem()
