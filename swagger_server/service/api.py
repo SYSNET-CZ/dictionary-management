@@ -1,4 +1,4 @@
-from management.data import DescriptorItem, FACTORY, DictionaryError
+from management.data import DescriptorItem, DICTIONARY_FACTORY, DictionaryError
 from swagger_server.models import Descriptor, DescriptorValue, ReplyImported, ImportedItem
 
 COUNTER = {
@@ -17,14 +17,14 @@ COUNTER = {
 
 
 def implementation_activate_descriptor(dictionary, key, active):
-    d = FACTORY.get_descriptor(dictionary=dictionary, key=key)
+    d = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key=key)
     if d is None:
         raise DictionaryError(status=404, message='Descriptor not found')
     if active:
-        FACTORY.activate_descriptor()
+        DICTIONARY_FACTORY.activate_descriptor()
     else:
-        FACTORY.deactivate_descriptor()
-    out = FACTORY.save_descriptor()
+        DICTIONARY_FACTORY.deactivate_descriptor()
+    out = DICTIONARY_FACTORY.save_descriptor()
     if out is None:
         return False
     return True
@@ -33,10 +33,10 @@ def implementation_activate_descriptor(dictionary, key, active):
 def implementation_add_descriptor(dictionary: str, descriptor: Descriptor):
     if descriptor.dictionary != dictionary:
         raise DictionaryError(status=400, message='Dictionary does not match')
-    d = FACTORY.get_descriptor(dictionary=dictionary, key=descriptor.key)
+    d = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key=descriptor.key)
     if d is not None:
         raise DictionaryError(status=409, message='Descriptor already exists')
-    d = FACTORY.create_descriptor(dictionary=dictionary, key=descriptor.key)
+    d = DICTIONARY_FACTORY.create_descriptor(dictionary=dictionary, key=descriptor.key)
     d.key_alt = descriptor.key_alt
     for v in descriptor.values:
         if v.lang.lower() == 'cs':
@@ -45,31 +45,31 @@ def implementation_add_descriptor(dictionary: str, descriptor: Descriptor):
             d.value_en = v.value
     if not descriptor.active:
         d.active = False
-    out = FACTORY.save_descriptor(d)
+    out = DICTIONARY_FACTORY.save_descriptor(d)
     if out is None:
         raise DictionaryError(status=500, message='Cannot save descriptor')
     return True
 
 
 def implementation_delete_descriptor(dictionary, key):
-    d = FACTORY.get_descriptor(dictionary=dictionary, key=key)
+    d = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key=key)
     if d is None:
-        d = FACTORY.get_descriptor(dictionary=dictionary, key_alt=key)
+        d = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key_alt=key)
     if d is None:
         raise DictionaryError(status=404, message='Descriptor not found')
 
-    out = FACTORY.remove_descriptor(descriptor=d)
+    out = DICTIONARY_FACTORY.remove_descriptor(descriptor=d)
     return out
 
 
 def implementation_export_all():
-    descriptor_list = FACTORY.get_all()
+    descriptor_list = DICTIONARY_FACTORY.get_all()
     out = _descriptor_list_to_swagger(descriptor_list=descriptor_list)
     return out
 
 
 def implementation_export_dictionary(dictionary):
-    descriptor_list = FACTORY.get_dictionary(dictionary=dictionary)
+    descriptor_list = DICTIONARY_FACTORY.get_dictionary(dictionary=dictionary)
     out = _descriptor_list_to_swagger(descriptor_list=descriptor_list)
     return out
 
@@ -78,7 +78,7 @@ def implementation_import_descriptors(descriptors, replace):
     out = ReplyImported(count_added=0, count_rejected=0, count_replaced=0, added=[], rejected=[], replaced=[])
     for d in descriptors:
         d1 = _swagger_to_descriptor(d)
-        o = FACTORY.add_descriptor(descriptor=d1, replace=replace)
+        o = DICTIONARY_FACTORY.add_descriptor(descriptor=d1, replace=replace)
         ii = ImportedItem().from_dict(o)
         if ii.status == 'added':
             out.count_added += 1
@@ -97,7 +97,7 @@ def implementation_import_dictionary(dictionary, descriptors, replace):
     for d in descriptors:
         d1 = _swagger_to_descriptor(d)
         if d1.dictionary == dictionary:
-            o = FACTORY.add_descriptor(descriptor=d1, replace=replace)
+            o = DICTIONARY_FACTORY.add_descriptor(descriptor=d1, replace=replace)
             ii = ImportedItem().from_dict(o)
             if ii.status == 'added':
                 out.count_added += 1
@@ -116,10 +116,10 @@ def implementation_import_dictionary(dictionary, descriptors, replace):
 
 
 def implementation_put_descriptor(dictionary, key, descriptor):
-    d0 = FACTORY.get_descriptor(dictionary=dictionary, key=key)
+    d0 = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key=key)
     if d0 is not None:
         d1 = _swagger_to_descriptor(descriptor=descriptor)
-        d = FACTORY.replace_descriptor(descriptor=d1)
+        d = DICTIONARY_FACTORY.replace_descriptor(descriptor=d1)
         out = _descriptor_to_swagger(d)
     else:
         out = None
@@ -128,9 +128,9 @@ def implementation_put_descriptor(dictionary, key, descriptor):
 
 # public methods ---------------------------------------------------------------------------------
 def implementation_get_descriptor(dictionary, key):
-    out = FACTORY.get_descriptor(dictionary=dictionary, key=key)
+    out = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key=key)
     if out is None:
-        out = FACTORY.get_descriptor(dictionary=dictionary, key_alt=key)
+        out = DICTIONARY_FACTORY.get_descriptor(dictionary=dictionary, key_alt=key)
     if out is None:
         return None
     out = _descriptor_to_swagger(out)
@@ -138,9 +138,9 @@ def implementation_get_descriptor(dictionary, key):
 
 
 def implementation_search_dictionary(dictionary, query=None, active=None, skip=None, limit=None):
-    reply = FACTORY.autocomplete_cs(dictionary=dictionary, query=query)
+    reply = DICTIONARY_FACTORY.autocomplete_cs(dictionary=dictionary, query=query)
     if not reply:
-        reply = FACTORY.autocomplete_en(dictionary=dictionary, query=query)
+        reply = DICTIONARY_FACTORY.autocomplete_en(dictionary=dictionary, query=query)
     out = _descriptor_list_to_swagger(reply, active=active, skip=skip, limit=limit)
     return out
 

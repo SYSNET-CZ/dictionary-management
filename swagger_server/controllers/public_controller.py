@@ -1,5 +1,5 @@
 from management.data import DictionaryError
-from settings import CONTEXT, LOG
+from settings import LOG
 from swagger_server.models.descriptor import Descriptor  # noqa: E501
 from swagger_server.service.api import COUNTER, implementation_get_descriptor, implementation_search_dictionary
 from swagger_server.util2 import who_am_i

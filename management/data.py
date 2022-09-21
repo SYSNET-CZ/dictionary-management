@@ -1,16 +1,16 @@
 from mongoengine import Document, StringField, connect, OperationError, ValidationError, disconnect, DoesNotExist, \
     NotUniqueError, BooleanField
 from pymongo import MongoClient
-from pymongo.errors import OperationFailure, PyMongoError
+from pymongo.errors import OperationFailure, PyMongoError, ServerSelectionTimeoutError
 
 from settings import MONGO_CLIENT_ALIAS, MONGO_DATABASE, MONGO_HOST, MONGO_PORT, MONGO_USERNAME, \
-    MONGO_PASSWORD, MONGO_COLLATION_CS, LOG, Singleton
+    MONGO_PASSWORD, MONGO_COLLATION_CS, LOG, Singleton, MONGO_COLLECTION
 
 
 class DescriptorItem(Document):
     meta = {
         'db_alias': MONGO_CLIENT_ALIAS,
-        'collection': 'descriptor',
+        'collection': MONGO_COLLECTION,
         'shard_key': ('dictionary', 'key'),
         'indexes': [
             'identifier',
@@ -45,15 +45,20 @@ class DictionaryFactory(metaclass=Singleton):
         self.info = {}
         self.qs = None
         self.db_initialized = False
+        self.server_info = None
         try:
             self.init_database()
-            self.connection = connect(
-                db=self.database,
-                alias='mandir-alias',
-                host=self.host, port=self.port, username=self.username, password=self.password,
-                authentication_source='admin')
-            LOG.logger.info('DictionaryFactory created')
-        except PyMongoError as e:
+            if self.db_initialized:
+                self.connection = connect(
+                    db=self.database,
+                    alias='mandir-alias',
+                    host=self.host, port=self.port, username=self.username, password=self.password,
+                    authentication_source='admin')
+                LOG.logger.info('DictionaryFactory created')
+            else:
+                LOG.logger.error('DictionaryFactory creation failed')
+                self.connection = None
+        except (PyMongoError, ServerSelectionTimeoutError) as e:
             LOG.logger.error(e)
             self.connection = None
 
@@ -64,32 +69,53 @@ class DictionaryFactory(metaclass=Singleton):
             LOG.logger.info('DictionaryFactory deleted')
 
     def init_database(self):
-        client = MongoClient(
-            host=self.host, port=self.port, username=self.username, password=self.password, authSource='admin')
-        dbnames = client.list_database_names()
-        if MONGO_DATABASE in dbnames:
-            LOG.logger.info('Dictionary database ready to use')
+        try:
+            client = MongoClient(
+                host=self.host,
+                port=self.port,
+                username=self.username,
+                password=self.password,
+                authSource='admin',
+                serverSelectionTimeoutMS=1
+            )
+            si = client.server_info()
+            self.server_info = {
+                'server': 'mongo://{}:{}'.format(client.HOST, client.PORT),
+                'version': si['version'],
+                'platform': si['buildEnvironment']['target_os'],
+                'architecture': si['buildEnvironment']['target_arch']
+            }
+            dbnames = client.list_database_names()
+            if self.database in dbnames:
+                LOG.logger.info('Dictionary database ready to use')
+                client.close()
+                del client
+                self.db_initialized = True
+                return False
+            db = client[self.database]
+            col = db[MONGO_COLLECTION]
+            init_desc = {
+                'identifier': 'init*0',
+                'dictionary': 'init',
+                'key': '0',
+                'key_alt': '00000',
+                'value': 'Databáze slovníků inicializována',
+                'value_en': 'Dictionary database initialized',
+                'active': False
+            }
+            desc = col.insert_one(init_desc)
+            LOG.logger.info('Dictionary database initiated {}'.format(str(desc.inserted_id)))
             client.close()
             del client
             self.db_initialized = True
+            return True
+        except ServerSelectionTimeoutError as e:
+            LOG.logger.error(e)
+            self.db_initialized = False
+            self.server_info = {
+                'error': str(e)
+            }
             return False
-        db = client[MONGO_DATABASE]
-        col = db['descriptor']
-        init_desc = {
-            'identifier': 'init*0',
-            'dictionary': 'init',
-            'key': '0',
-            'key_alt': '00000',
-            'value': 'Databáze slovníků inicializována',
-            'value_en': 'Dictionary database initialized',
-            'active': False
-        }
-        desc = col.insert_one(init_desc)
-        LOG.logger.info('Dictionary database initiated {}'.format(str(desc.inserted_id)))
-        client.close()
-        del client
-        self.db_initialized = True
-        return True
 
     def create_descriptor(self, dictionary=None, key=None, json_data=None, active=True, descriptor=None, **kwargs):
         self.current_descriptor = DescriptorItem()
@@ -288,18 +314,21 @@ class DictionaryFactory(metaclass=Singleton):
         return self.dictionaries
 
     def get_info(self):
-        self.get_dictionaries()
-        self.info = {
-            'count': {
-                'dictionaries': len(self.dictionaries),
-                'descriptors': sum(self.dictionaries.values())},
-            'dictionaries': self.dictionaries
-        }
+        if self.db_initialized:
+            self.get_dictionaries()
+            self.info = {
+                'count': {
+                    'dictionaries': len(self.dictionaries),
+                    'descriptors': sum(self.dictionaries.values())},
+                'dictionaries': self.dictionaries
+            }
+        else:
+            self.info = {'error': 'Database is not initialized'}
         return self.info
 
 
 def get_info():
-    out = FACTORY.get_info()
+    out = DICTIONARY_FACTORY.get_info()
     return out
 
 
@@ -398,4 +427,4 @@ class DictionaryError(Exception):
         super().__init__(self.message)
 
 
-FACTORY = DictionaryFactory()
+DICTIONARY_FACTORY = DictionaryFactory()

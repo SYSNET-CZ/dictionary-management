@@ -5,7 +5,7 @@ import sys
 
 import yaml
 
-VERSION = os.getenv('DICT_VERSION', '1.0.0')
+VERSION = os.getenv('DICT_VERSION', '1.0.2')
 DEBUG = os.getenv("DEBUG", 'True').lower() in ('true', '1', 't')
 LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(levelname)s in %(module)s: %(message)s')
 LOG_DATE_FORMAT = os.getenv('LOG_DATE_FORMAT', '%d.%m.%Y %H:%M:%S')
@@ -24,8 +24,7 @@ MONGO_PORT = int(os.getenv('MONGO_PORT', 27017))
 MONGO_USERNAME = os.getenv('MONGO_USERNAME', 'root')
 MONGO_PASSWORD = os.getenv('MONGO_PASSWORD', 'Egalite1651.')
 MONGO_COLLATION_CS = {"locale": "cs@collation=search"}
-
-AGENDA_CITES = 'cites'
+DEFAULT_AGENDA = os.getenv('DEFAULT_AGENDA', 'dict')
 
 
 class Singleton(type):
@@ -77,18 +76,23 @@ def init_config():
         with open(CONFIG_FILE_PATH, "r") as yamlfile:
             out = yaml.load(yamlfile, Loader=yaml.FullLoader)
             LOG.logger.info('Configuration loaded')
-        return out
-    out = create_config()
-    with open(CONFIG_FILE_PATH, 'w') as yamlfile:
-        yaml.dump(out, yamlfile)
-        LOG.logger.info('Configuration stored')
+        if DEFAULT_AGENDA not in out:
+            # opravit konfiguraci
+            key = list(out.keys())[0]
+            out1 = {DEFAULT_AGENDA: out[key]}
+            out = out1
+    else:
+        out = create_config()
+        with open(CONFIG_FILE_PATH, 'w') as yamlfile:
+            yaml.dump(out, yamlfile)
+            LOG.logger.info('Configuration created and stored')
     return out
 
 
 def create_config():
     out = {
-        AGENDA_CITES: {
-            'api_keys': init_api_keys(AGENDA_CITES)
+        DEFAULT_AGENDA: {
+            'api_keys': init_api_keys(DEFAULT_AGENDA)
         },
     }
     return out
