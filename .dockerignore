@@ -6,6 +6,12 @@ git_push.sh
 test-requirements.txt
 setup.py
 
+backup/
+conf/
+logs/
+upload/
+.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

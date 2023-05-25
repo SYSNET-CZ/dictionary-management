@@ -5,7 +5,7 @@ import sys
 
 import yaml
 
-VERSION = os.getenv('DICT_VERSION', '1.0.2')
+VERSION = os.getenv('DICT_VERSION', '1.0.0.002')
 DEBUG = os.getenv("DEBUG", 'True').lower() in ('true', '1', 't')
 LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(levelname)s in %(module)s: %(message)s')
 LOG_DATE_FORMAT = os.getenv('LOG_DATE_FORMAT', '%d.%m.%Y %H:%M:%S')
@@ -15,6 +15,7 @@ BACKUP_DIR = os.getenv('BACKUP_DIR', os.path.join(ROOT_DIR, 'backup'))
 CONFIG_DIR = os.getenv('CONFIG_DIRECTORY', os.path.join(ROOT_DIR, 'conf'))
 CONFIG_FILE_NAME = os.getenv('CONFIG_FILE_NAME', 'dict.yml')
 CONFIG_FILE_PATH = os.path.join(CONFIG_DIR, CONFIG_FILE_NAME)
+UPLOAD_DIR = os.getenv('UPLOAD_DIRECTORY', os.path.join(ROOT_DIR, 'upload'))
 
 MONGO_CLIENT_ALIAS = 'mandir-alias'
 MONGO_DATABASE = os.getenv('MONGO_DATABASE', 'dictionaries')
@@ -25,6 +26,15 @@ MONGO_USERNAME = os.getenv('MONGO_USERNAME', 'root')
 MONGO_PASSWORD = os.getenv('MONGO_PASSWORD', 'Egalite1651.')
 MONGO_COLLATION_CS = {"locale": "cs@collation=search"}
 DEFAULT_AGENDA = os.getenv('DEFAULT_AGENDA', 'dict')
+
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR)
+if not os.path.exists(BACKUP_DIR):
+    os.makedirs(BACKUP_DIR)
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
 
 
 class Singleton(type):
@@ -92,7 +102,16 @@ def init_config():
 def create_config():
     out = {
         DEFAULT_AGENDA: {
-            'api_keys': init_api_keys(DEFAULT_AGENDA)
+            'api_keys': init_api_keys(DEFAULT_AGENDA),
+            'database': MONGO_DATABASE
+        },
+        'mongo': {
+            'host': MONGO_HOST,
+            'port': MONGO_PORT,
+            'user': MONGO_USERNAME,
+            'password': MONGO_PASSWORD,
+            'locale': MONGO_COLLATION_CS['locale'],
+            'collation': MONGO_COLLATION_CS
         },
     }
     return out

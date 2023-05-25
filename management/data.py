@@ -3,8 +3,7 @@ from mongoengine import Document, StringField, connect, OperationError, Validati
 from pymongo import MongoClient
 from pymongo.errors import OperationFailure, PyMongoError, ServerSelectionTimeoutError
 
-from settings import MONGO_CLIENT_ALIAS, MONGO_DATABASE, MONGO_HOST, MONGO_PORT, MONGO_USERNAME, \
-    MONGO_PASSWORD, MONGO_COLLATION_CS, LOG, Singleton, MONGO_COLLECTION
+from settings import MONGO_CLIENT_ALIAS, LOG, Singleton, MONGO_COLLECTION, CONFIG, DEFAULT_AGENDA
 
 
 class DescriptorItem(Document):
@@ -31,8 +30,9 @@ class DescriptorItem(Document):
 
 class DictionaryFactory(metaclass=Singleton):
     def __init__(
-            self, database=MONGO_DATABASE, host=MONGO_HOST, port=MONGO_PORT,
-            username=MONGO_USERNAME, password=MONGO_PASSWORD):
+            self, database=CONFIG[DEFAULT_AGENDA]['database'],
+            host=CONFIG['mongo']['host'], port=CONFIG['mongo']['port'],
+            username=CONFIG['mongo']['user'], password=CONFIG['mongo']['password']):
         self.database = database
         self.host = host
         self.port = port
@@ -49,11 +49,7 @@ class DictionaryFactory(metaclass=Singleton):
         try:
             self.init_database()
             if self.db_initialized:
-                self.connection = connect(
-                    db=self.database,
-                    alias='mandir-alias',
-                    host=self.host, port=self.port, username=self.username, password=self.password,
-                    authentication_source='admin')
+                self.connect_server()
                 LOG.logger.info('DictionaryFactory created')
             else:
                 LOG.logger.error('DictionaryFactory creation failed')
@@ -67,6 +63,19 @@ class DictionaryFactory(metaclass=Singleton):
             self.connection.close()
             disconnect()
             LOG.logger.info('DictionaryFactory deleted')
+
+    def connect_server(self):
+        self.disconnect_server()
+        self.connection = connect(
+            db=self.database,
+            alias=MONGO_CLIENT_ALIAS,
+            host=self.host, port=self.port, username=self.username, password=self.password,
+            authentication_source='admin')
+        return self.connection
+
+    def disconnect_server(self):
+        if self.connection is not None:
+            disconnect(alias=MONGO_CLIENT_ALIAS)
 
     def init_database(self):
         try:
@@ -120,6 +129,7 @@ class DictionaryFactory(metaclass=Singleton):
     def create_descriptor(self, dictionary=None, key=None, json_data=None, active=True, descriptor=None, **kwargs):
         self.current_descriptor = DescriptorItem()
         try:
+            self.connect_server()
             if descriptor is not None:
                 self.current_descriptor = descriptor
             elif json_data is not None:
@@ -136,6 +146,7 @@ class DictionaryFactory(metaclass=Singleton):
                         self.current_descriptor.value = value
                     elif key == 'value_en':
                         self.current_descriptor.value_en = value
+            self.disconnect_server()
             LOG.logger.info('Descriptor created: {}'.format(self.current_descriptor.identifier))
         except OperationError as e:
             LOG.logger.error(e)
@@ -212,24 +223,29 @@ class DictionaryFactory(metaclass=Singleton):
 
     def remove_dictionary(self, dictionary=None):
         self.qs = None
+        self.connect_server()
         if dictionary is None:
             return False
         self.qs = DescriptorItem.objects(dictionary=dictionary)
         if self.qs.count() < 1:
             return False
         self.qs.delete()
+        self.disconnect_server()
         return True
 
     def remove_all(self):
+        self.connect_server()
         self.qs = DescriptorItem.objects()
         if self.qs.count() < 1:
             return False
         self.qs.delete()
+        self.disconnect_server()
         return True
 
     def get_descriptor(self, dictionary=None, key=None, key_alt=None):
         self.current_descriptor = None
         try:
+            self.connect_server()
             if (dictionary is not None) and (key is not None):
                 identifier = '{}*{}'.format(dictionary.lower(), key.lower())
                 d = DescriptorItem.objects.get(identifier=identifier)
@@ -239,6 +255,7 @@ class DictionaryFactory(metaclass=Singleton):
                 d = DescriptorItem.objects.get(dictionary=dictionary, key_alt__iexact=key_alt)
                 self.current_descriptor = d
                 LOG.logger.info('Descriptor loaded by key_alt: {}'.format(d.identifier))
+            self.disconnect_server()
         except DoesNotExist as e:
             LOG.logger.error(e)
             self.current_descriptor = None
@@ -246,50 +263,59 @@ class DictionaryFactory(metaclass=Singleton):
 
     def get_all(self):
         self.search_result = []
+        self.connect_server()
         qs = DescriptorItem.objects()
         if qs.count() < 1:
             return self.search_result
-        qs1 = qs.collation(MONGO_COLLATION_CS)
+        qs1 = qs.collation(CONFIG['mongo']['collation'])
         for item in qs1.values_list():
             self.search_result.append(item)
+        self.disconnect_server()
         return self.search_result
 
     def get_dictionary(self, dictionary=None):
         self.search_result = []
+        self.connect_server()
         qs = DescriptorItem.objects(dictionary=dictionary)
         if qs.count() < 1:
             return self.search_result
-        qs1 = qs.collation(MONGO_COLLATION_CS)
+        qs1 = qs.collation(CONFIG['mongo']['collation'])
         for item in qs1.values_list():
             self.search_result.append(item)
+        self.disconnect_server()
         return self.search_result
 
     def autocomplete_cs(self, dictionary=None, query=None):
         self.search_result = []
         if (dictionary is None) or (query is None):
             return self.search_result
+        self.connect_server()
         qs = DescriptorItem.objects(dictionary=dictionary, value__icontains=query)
         if qs.count() < 1:
             return self.search_result
-        qs1 = qs.collation(MONGO_COLLATION_CS)
+        qs1 = qs.collation(CONFIG['mongo']['collation'])
         for item in qs1.values_list():
             self.search_result.append(item)
+        self.disconnect_server()
         return self.search_result
 
     def autocomplete_en(self, dictionary=None, query=None):
         self.search_result = []
         if (dictionary is None) or (query is None):
             return self.search_result
+        self.connect_server()
         qs = DescriptorItem.objects(dictionary=dictionary, value_en__icontains=query)
         if qs.count() < 1:
             return self.search_result
         self.search_result = qs.values_list()
         for item in qs.values_list():
             self.search_result.append(item)
+        self.disconnect_server()
         return self.search_result
 
     def get_descriptor_list(self, dictionary=None):
         self.search_result = []
+        self.connect_server()
         if dictionary is None:
             qs = DescriptorItem.objects()
         else:
@@ -298,10 +324,12 @@ class DictionaryFactory(metaclass=Singleton):
             return self.search_result
         for item in qs.values_list():
             self.search_result.append(item)
+        self.disconnect_server()
         return self.search_result
 
     def get_dictionaries(self):
         self.dictionaries = {}
+        self.connect_server()
         qs = DescriptorItem.objects.only('dictionary')
         if qs.count() < 1:
             return self.dictionaries
@@ -311,6 +339,7 @@ class DictionaryFactory(metaclass=Singleton):
                 self.dictionaries[d] += 1
             else:
                 self.dictionaries[d] = 1
+        self.disconnect_server()
         return self.dictionaries
 
     def get_info(self):
@@ -333,12 +362,13 @@ def get_info():
 
 
 def create_mongo_client(
-        database=MONGO_DATABASE,
-        host=MONGO_HOST,
-        port=MONGO_PORT,
-        username=MONGO_USERNAME,
-        password=MONGO_PASSWORD):
+        database=CONFIG[DEFAULT_AGENDA]['database'],
+        host=CONFIG['mongo']['host'],
+        port=CONFIG['mongo']['port'],
+        username=CONFIG['mongo']['user'],
+        password=CONFIG['mongo']['password']):
     try:
+        disconnect(alias=MONGO_CLIENT_ALIAS)
         out = connect(
             db=database,
             alias=MONGO_CLIENT_ALIAS,
@@ -364,6 +394,7 @@ def get_descriptor(dictionary=None, key=None, key_alt=None):
     if key is None and key_alt is None:
         return None
     out = None
+    DICTIONARY_FACTORY.connect_server()
     if (dictionary is not None) and (key is not None):
         identifier = '{}*{}'.format(dictionary.lower(), key.lower())
         qs = DescriptorItem.objects(identifier=identifier)
@@ -373,6 +404,7 @@ def get_descriptor(dictionary=None, key=None, key_alt=None):
         qs = DescriptorItem.objects(dictionary=dictionary, key_alt=key_alt)
         if qs.count() > 0:
             out = qs.first()
+    DICTIONARY_FACTORY.disconnect_server()
     return out
 
 
@@ -389,6 +421,7 @@ def delete_descriptor(descriptor):
 def create_descriptor(dictionary=None, key=None, json_data=None, **kwargs):
     out = DescriptorItem()
     try:
+        DICTIONARY_FACTORY.connect_server()
         if dictionary is not None and key is not None:
             out.identifier = '{}*{}'.format(dictionary.lower(), key.lower())
             out.dictionary = dictionary
@@ -402,6 +435,7 @@ def create_descriptor(dictionary=None, key=None, json_data=None, **kwargs):
                     out.value_en = value
         if json_data is not None:
             out.from_json(json_data=json_data)
+        DICTIONARY_FACTORY.disconnect_server()
     except OperationError as e:
         print(str(e))
         out = None

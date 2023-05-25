@@ -1,6 +1,19 @@
 dict:
   api_keys:
-  - xH6QfhWLvW7Xq1Z457g4yA: dict 1
-  - jL63hSRnVwv8dRVJUJk89g: dict 2
-  - BZ_Q3hGwyHTgb5O2cK3USQ: dict 3
-  - nK0eQXUd5PVTrLJ7nx1Otg: dict 4
+  - 1ywA1Fxc9QBB3CtvP6kGJw: dict 1
+  - fKsCgiQ_lArSAgXfX2mxBg: dict 2
+  - VWcmRTtIRfELN54PUh6vtg: dict 3
+  - wr5nkluu2OjjuUhR5LGpYg: dict 4
+  - xH6QfhWLvW7Xq1Z457g4yA: dict old 1
+  - jL63hSRnVwv8dRVJUJk89g: dict old 2
+  - BZ_Q3hGwyHTgb5O2cK3USQ: dict old 3
+  - nK0eQXUd5PVTrLJ7nx1Otg: dict old 4
+  database: dictionaries
+mongo:
+  collation:
+    locale: cs@collation=search
+  host: localhost
+  locale: cs@collation=search
+  password: Egalite1651.
+  port: 27017
+  user: root
