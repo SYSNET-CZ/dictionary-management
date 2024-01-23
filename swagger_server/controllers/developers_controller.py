@@ -21,5 +21,6 @@ def info_api():  # noqa: E501
         'mongo': DICTIONARY_FACTORY.server_info,
         'data': get_info(),
     }
+    out['mongo']['database'] = DICTIONARY_FACTORY.database
     LOG.logger.info('{}: {}'.format(__name__, 'Result returned'))
     return out
