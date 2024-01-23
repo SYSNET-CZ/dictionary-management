@@ -1,16 +1,21 @@
-import logging
 import os
 import secrets
-import sys
 
-import yaml
+import sysnet_pyutils.utils as pu
 
-VERSION = os.getenv('DICT_VERSION', '1.0.0.002')
+VERSION = os.getenv('DICT_VERSION', '1.0.0.003')
+APP_NAME = os.getenv('DICT_NAME', 'SYSNET Managed Dictionaries API')
+
 DEBUG = os.getenv("DEBUG", 'True').lower() in ('true', '1', 't')
 LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(levelname)s in %(module)s: %(message)s')
 LOG_DATE_FORMAT = os.getenv('LOG_DATE_FORMAT', '%d.%m.%Y %H:%M:%S')
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # This is your Project Root
 LOG_DIR = os.getenv('LOG_DIR', os.path.join(ROOT_DIR, 'logs'))
+LOG_FILE_NAME = os.getenv('LOG_FILE_NAME', 'dict.log')
+LOG_FILE_PATH = os.path.join(LOG_DIR, LOG_FILE_NAME)
+ERROR_FILE_PATH = os.path.join(LOG_DIR, 'error.log')
+DEBUG_FILE_PATH = os.path.join(LOG_DIR, 'debug.log')
 BACKUP_DIR = os.getenv('BACKUP_DIR', os.path.join(ROOT_DIR, 'backup'))
 CONFIG_DIR = os.getenv('CONFIG_DIRECTORY', os.path.join(ROOT_DIR, 'conf'))
 CONFIG_FILE_NAME = os.getenv('CONFIG_FILE_NAME', 'dict.yml')
@@ -37,35 +42,7 @@ if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
 
-class Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Log(object, metaclass=Singleton):
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        handler = logging.StreamHandler(sys.stdout)
-        if DEBUG:
-            self.logger.setLevel(logging.DEBUG)
-            handler.setLevel(logging.DEBUG)
-        else:
-            self.logger.setLevel(logging.INFO)
-            handler.setLevel(logging.INFO)
-        formatter = logging.Formatter(fmt=LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
-        handler.setFormatter(formatter)
-        if self.logger.hasHandlers():
-            self.logger.handlers.clear()
-        self.logger.addHandler(handler)
-        self.logger.propagate = False
-        self.logger.info('LOG created')
-
-
-class Context(object, metaclass=Singleton):
+class Context(object, metaclass=pu.Singleton):
     def __init__(self, api_key=None, user_name=None, agenda=None):
         self.api_key = api_key
         self.user_name = user_name
@@ -81,40 +58,20 @@ class Context(object, metaclass=Singleton):
         LOG.logger.info('CONTEXT cleared')
 
 
-def init_config():
-    if os.path.isfile(CONFIG_FILE_PATH):
-        with open(CONFIG_FILE_PATH, "r") as yamlfile:
-            out = yaml.load(yamlfile, Loader=yaml.FullLoader)
-            LOG.logger.info('Configuration loaded')
-        if DEFAULT_AGENDA not in out:
-            # opravit konfiguraci
-            key = list(out.keys())[0]
-            out1 = {DEFAULT_AGENDA: out[key]}
-            out = out1
-    else:
-        out = create_config()
-        with open(CONFIG_FILE_PATH, 'w') as yamlfile:
-            yaml.dump(out, yamlfile)
-            LOG.logger.info('Configuration created and stored')
-    return out
-
-
-def create_config():
-    out = {
-        DEFAULT_AGENDA: {
-            'api_keys': init_api_keys(DEFAULT_AGENDA),
-            'database': MONGO_DATABASE
-        },
-        'mongo': {
-            'host': MONGO_HOST,
-            'port': MONGO_PORT,
-            'user': MONGO_USERNAME,
-            'password': MONGO_PASSWORD,
-            'locale': MONGO_COLLATION_CS['locale'],
-            'collation': MONGO_COLLATION_CS
-        },
-    }
-    return out
+CONFIG_INIT = {
+    DEFAULT_AGENDA: {
+        'api_keys': pu.api_keys_init(DEFAULT_AGENDA),
+        'database': MONGO_DATABASE
+    },
+    'mongo': {
+        'host': MONGO_HOST,
+        'port': MONGO_PORT,
+        'user': MONGO_USERNAME,
+        'password': MONGO_PASSWORD,
+        'locale': MONGO_COLLATION_CS['locale'],
+        'collation': MONGO_COLLATION_CS
+    },
+}
 
 
 def init_api_keys(agenda, amount=4):
@@ -153,6 +110,9 @@ def set_ext_logger(ext_logger):
         LOG.logger = ext_logger
 
 
-LOG = Log()
-CONFIG = init_config()
+LOG = pu.Log()
+CC = pu.Config(config_path=CONFIG_FILE_PATH, config_dict=CONFIG_INIT)
+if CC.loaded:
+    LOG.logger.info('{} version {}: CONFIG loaded'.format(APP_NAME, VERSION))
+CONFIG = CC.config
 CONTEXT = Context()

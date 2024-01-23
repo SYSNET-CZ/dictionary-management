@@ -10,8 +10,8 @@ info:
     url: https://www.gnu.org/licenses/agpl-3.0.html
   version: 1.0.0
 servers:
-- url: https://virtserver.swaggerhub.com/SYSNET/dictionary/1.0.0
-  description: SwaggerHub API Auto Mocking
+- url: http://localhost/dictionary/1.0.0
+  description: Docker container
 tags:
 - name: admins
   description: Secured Admin-only calls

@@ -23,13 +23,13 @@ python -m swagger_server
 and open your browser to here:
 
 ```
-http://localhost:8080/SYSNET/dictionary/1.0.0/ui/
+http://localhost:8080/dictionary/1.0.0/ui/
 ```
 
 Your Swagger definition lives here:
 
 ```
-http://localhost:8080/SYSNET/dictionary/1.0.0/swagger.json
+http://localhost:8080/dictionary/1.0.0/swagger.json
 ```
 
 To launch the integration tests, use tox:

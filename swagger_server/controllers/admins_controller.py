@@ -53,7 +53,7 @@ def activate_descriptor(dictionary, key, active):  # noqa: E501
 
 
 def add_descriptor(dictionary, body=None):  # noqa: E501
-    """adds an descriptor
+    """adds a descriptor
 
     Adds a descriptor to the system # noqa: E501
 
@@ -79,8 +79,8 @@ def add_descriptor(dictionary, body=None):  # noqa: E501
     try:
         out = implementation_add_descriptor(dictionary=dictionary, descriptor=body)
         if out:
-            return 'Descriptor succesfully created', 201
-        return 'Error creating decriptor', 500
+            return 'Descriptor successfully created', 201
+        return 'Error creating descriptor', 500
     except DictionaryError as e:
         LOG.logger.error('{}: {}'.format(__name__, e.message))
         return 'Dictionary error: {}'.format(e.message), e.status

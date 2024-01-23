@@ -78,18 +78,23 @@ def implementation_import_descriptors(descriptors, replace):
     out = ReplyImported(count_added=0, count_rejected=0, count_replaced=0, added=[], rejected=[], replaced=[])
     for d in descriptors:
         d1 = _swagger_to_descriptor(d)
-        o = DICTIONARY_FACTORY.add_descriptor(descriptor=d1, replace=replace)
-        ii = ImportedItem().from_dict(o)
-        if ii.status == 'added':
-            out.count_added += 1
-            out.added.append(ii)
-        elif ii.status == 'rejected':
-            out.count_rejected += 1
-            out.rejected.append(ii)
-        elif ii.status == 'replaced':
-            out.count_replaced += 1
-            out.replaced.append(ii)
+        _fill_reply_imported(reply_imported=out, descriptor=d1, replace=replace)
     return out
+
+
+def _fill_reply_imported(reply_imported, descriptor, replace):
+    o = DICTIONARY_FACTORY.add_descriptor(descriptor=descriptor, replace=replace)
+    ii = ImportedItem().from_dict(o)
+    if ii.status == 'added':
+        reply_imported.count_added += 1
+        reply_imported.added.append(ii)
+    elif ii.status == 'rejected':
+        reply_imported.count_rejected += 1
+        reply_imported.rejected.append(ii)
+    elif ii.status == 'replaced':
+        reply_imported.count_replaced += 1
+        reply_imported.replaced.append(ii)
+    pass
 
 
 def implementation_import_dictionary(dictionary, descriptors, replace):
@@ -97,17 +102,7 @@ def implementation_import_dictionary(dictionary, descriptors, replace):
     for d in descriptors:
         d1 = _swagger_to_descriptor(d)
         if d1.dictionary == dictionary:
-            o = DICTIONARY_FACTORY.add_descriptor(descriptor=d1, replace=replace)
-            ii = ImportedItem().from_dict(o)
-            if ii.status == 'added':
-                out.count_added += 1
-                out.added.append(ii)
-            elif ii.status == 'rejected':
-                out.count_rejected += 1
-                out.rejected.append(ii)
-            elif ii.status == 'replaced':
-                out.count_replaced += 1
-                out.replaced.append(ii)
+            _fill_reply_imported(reply_imported=out, descriptor=d1, replace=replace)
         else:
             ii = ImportedItem(dictionary=d1.dictionary, key=d1.key, status='rejected')
             out.count_rejected += 1

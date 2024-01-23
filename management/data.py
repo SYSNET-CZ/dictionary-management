@@ -2,8 +2,9 @@ from mongoengine import Document, StringField, connect, OperationError, Validati
     NotUniqueError, BooleanField
 from pymongo import MongoClient
 from pymongo.errors import OperationFailure, PyMongoError, ServerSelectionTimeoutError
+from sysnet_pyutils.utils import Singleton
 
-from settings import MONGO_CLIENT_ALIAS, LOG, Singleton, MONGO_COLLECTION, CONFIG, DEFAULT_AGENDA
+from settings import MONGO_CLIENT_ALIAS, LOG, MONGO_COLLECTION, CONFIG, DEFAULT_AGENDA
 
 
 class DescriptorItem(Document):
@@ -285,13 +286,19 @@ class DictionaryFactory(metaclass=Singleton):
         self.disconnect_server()
         return self.search_result
 
-    def autocomplete_cs(self, dictionary=None, query=None):
+    def _get_descriptors(self, dictionary=None, query=None):
         self.search_result = []
         if (dictionary is None) or (query is None):
-            return self.search_result
+            return None
         self.connect_server()
         qs = DescriptorItem.objects(dictionary=dictionary, value__icontains=query)
         if qs.count() < 1:
+            return None
+        return qs
+
+    def autocomplete_cs(self, dictionary=None, query=None):
+        qs = self._get_descriptors(dictionary=dictionary, query=query)
+        if qs is None:
             return self.search_result
         qs1 = qs.collation(CONFIG['mongo']['collation'])
         for item in qs1.values_list():
@@ -300,12 +307,8 @@ class DictionaryFactory(metaclass=Singleton):
         return self.search_result
 
     def autocomplete_en(self, dictionary=None, query=None):
-        self.search_result = []
-        if (dictionary is None) or (query is None):
-            return self.search_result
-        self.connect_server()
-        qs = DescriptorItem.objects(dictionary=dictionary, value_en__icontains=query)
-        if qs.count() < 1:
+        qs = self._get_descriptors(dictionary=dictionary, query=query)
+        if qs is None:
             return self.search_result
         self.search_result = qs.values_list()
         for item in qs.values_list():
