@@ -1,0 +1,197 @@
+[
+  {
+    "key": "0",
+    "key_alt": "MZP",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Ministerstvo životního prostředí",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "C",
+    "key_alt": "JHC",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Jihočeský kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "B",
+    "key_alt": "JHM",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Jihomoravský kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "K",
+    "key_alt": "KVK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Karlovarský kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "J",
+    "key_alt": "VYS",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Kraj Vysočina",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "H",
+    "key_alt": "HKK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Královéhradecký kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "L",
+    "key_alt": "LBK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Liberecký kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "A",
+    "key_alt": "PHA",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Hlavní město Praha",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "T",
+    "key_alt": "MSK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Moravskoslezský kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "M",
+    "key_alt": "OLK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Olomoucký kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "E",
+    "key_alt": "PAK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Pardubický kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "P",
+    "key_alt": "PLK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Plzeňský kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "S",
+    "key_alt": "STC",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Středočeský kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "U",
+    "key_alt": "ULK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Ústecký kraj",
+        "value_alt": ""
+      }
+    ]
+  },
+  {
+    "key": "Z",
+    "key_alt": "ZLK",
+    "dictionary": "regions",
+    "active": true,
+    "values": [
+      {
+        "lang": "cs",
+        "value": "Zlínský kraj",
+        "value_alt": ""
+      }
+    ]
+  }
+]

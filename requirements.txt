@@ -1,16 +1,8 @@
-sysnet-pyutils>=1.0.2
+sysnet-pyutils>=1.0.7
 
-mongoengine~=0.27.0
-pymongo~=4.3.3
-PyYAML~=6.0
-
-connexion==2.14.2
-python_dateutil>=2.8.2
-setuptools >= 21.0.0
-swagger-ui-bundle~=0.0.9
-
-gunicorn~=21.2.0
-environs~=9.5.0
-Flask~=2.2.3
-six~=1.16.0
-Flask-Cors~=3.0.10
+fastapi[all]~=0.115.7
+pydantic~=2.10.6
+pymongo~=4.9.2
+beanie~=1.29.0
+six~=1.17.0
+motor~=3.6.1

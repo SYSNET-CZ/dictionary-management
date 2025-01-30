@@ -6,14 +6,15 @@ dict:
   - wr5nkluu2OjjuUhR5LGpYg: dict 4
   - xH6QfhWLvW7Xq1Z457g4yA: dict old 1
   - jL63hSRnVwv8dRVJUJk89g: dict old 2
-  - BZ_Q3hGwyHTgb5O2cK3USQ: dict old 3
-  - nK0eQXUd5PVTrLJ7nx1Otg: dict old 4
+  - BZ_Q3hGwyHTgb5O2cK3USQ: CITES Portal PROD
+  - nK0eQXUd5PVTrLJ7nx1Otg: CITES Portal TEST
   database: dictionaries
 mongo:
   collation:
     locale: cs@collation=search
   host: localhost
   locale: cs@collation=search
-  password: Egalite1651.
+  password: s3cr3t
   port: 27017
+  status: GREEN
   user: root

@@ -1,21 +1,33 @@
-# FROM python:3.9-bullseye
-FROM python:3.9-slim
+FROM python:3-slim
 
-ARG HOME_DOR=/opt/dictionary
+LABEL cz.sysnet.vendor="SYSNET s.r.o."
+LABEL cz.sysnet.image.authors="rjaeger@sysnet.cz"
+LABEL description="SYSNET Controlled Dictionaries"
 
-RUN mkdir -p ${HOME_DOR}
-WORKDIR ${HOME_DOR}
+ARG HOME_DIR=/opt/dictionary
 
-COPY requirements.txt ${HOME_DOR}/
+RUN mkdir -p ${HOME_DIR}
+WORKDIR ${HOME_DIR}
 
-ENV SERVICE_ENVIRONMENT=production
+RUN apt-get -y update; apt-get -y install curl
 
-RUN python -m pip install --upgrade pip
+COPY requirements.txt ${HOME_DIR}
+
+
+ENV SERVICE_ENVIRONMENT=production \
+    API_ROOT_PATH=dict \
+    INSTANCE=PROD \
+    PATH="$PATH:${HOME_DIR}" \
+    TZ=Europe/Prague
+
+RUN python3 -m pip install --upgrade pip
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-COPY . ${HOME_DOR}
+COPY . ${HOME_DIR}
 
 EXPOSE 8080
 
-CMD ["gunicorn", "app:app", "--preload", "-w", "4", "-t", "120", "-b", "0.0.0.0:8080"]
-# CMD ["gunicorn", "app:app", "-w", "4", "-t", "120", "-b", "0.0.0.0:8080"]
+RUN chmod +x ./*.sh
+
+RUN cd ${HOME_DIR}
+ENTRYPOINT ["/bin/bash", "/opt/dictionary/docker-entrypoint.sh"]

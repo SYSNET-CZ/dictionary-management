@@ -1,15 +1,13 @@
-.travis.yaml
-.swagger-codegen-ignore
 README.md
-tox.ini
-git_push.sh
-test-requirements.txt
-setup.py
+LICENSE
+Dockerfile
+docker-compose.yml
 
 backup/
 conf/
 logs/
 upload/
+data/
 .env
 
 # Byte-compiled / optimized / DLL files
