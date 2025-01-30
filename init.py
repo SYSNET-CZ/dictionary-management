@@ -4,7 +4,7 @@ import secrets
 from pymongo.collation import Collation
 from sysnet_pyutils.utils import LoggedObject, Singleton, api_keys_init, Log, Config
 
-VERSION = os.getenv('DICT_VERSION', '2.0.0')
+VERSION = os.getenv('DICT_VERSION', '2.0.1')
 APP_NAME = os.getenv('DICT_NAME', 'SYSNET Managed Dictionaries API')
 APP_CODE = 'dict'
 DEBUG = os.getenv("DEBUG", 'False').lower() in ('true', '1', 't')

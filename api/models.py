@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from enum import Enum
@@ -41,6 +42,18 @@ class StatusEnum(Enum):
         return value in cls._value2member_map_
 
 
+class Dictionary(BaseModel):
+    dictionary: Annotated[Union[str, None], Field(description='Název řízeného slovníku', alias="_id")]
+    count: Annotated[Union[int, None], Field(description='Počet položek řízeného slovníku')]
+
+
+class DominoImport(BaseModel):
+    dictionary: Annotated[Union[str, None], Field(description='Název řízeného slovníku', examples=['country'])]
+    value_key_text: Annotated[
+        Union[str, None],
+        Field(
+            description='Obsah řízeného slovníku',
+            examples=['Průvodní dopis|pd\nObálka|ob'])]
 class ImportedItem(BaseModel):
     dictionary: Annotated[Union[str, None], Field(description='Řízený slovník', examples=['country'])]
     key: Annotated[Union[str, None], Field(description='Identifikátor deskriptoru', examples=['AT'])]
@@ -109,8 +122,15 @@ class DescriptorDb(Document, Descriptor):
             ),
             IndexModel(
                 keys=[("$**", pymongo.ASCENDING)],
-                name="idx_text",
+                name="idx_wildcard",
                 collation=COLLATION,
+            ),
+            IndexModel(
+                [("key", "text"), ("key_alt", "text"), ("dictionary", 'text'), ('values.value', 'text'), ('values.value_alt', 'text')],
+                name="idx_text",
+                # default_language=None,
+                # language_override=None,
+                # collation=COLLATION,
             )
         ]
 
@@ -176,6 +196,14 @@ class DescriptorDb(Document, Descriptor):
             out_item = Descriptor(**dump)
             out.append(out_item)
         return out
+
+    @classmethod
+    async def dictionary_list(cls) -> List[Dictionary]:
+        out = await DescriptorDb.find({}).aggregate(
+            [{"$group" : {"_id":"$dictionary", "count":{"$sum":1}}}],
+            projection_model=Dictionary).to_list()
+        return out
+
 
     @classmethod
     async def export_dictionary(cls, dictionary: str) -> List[DescriptorBase]:

@@ -15,10 +15,10 @@ from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from api.commons import create_query, update_changed_values
-from api.dependencies import header_scheme, is_api_authorized
+from api.dependencies import header_scheme, is_api_authorized, import_data
 from api.models import Descriptor, ReplyImported, ApiError, DescriptorDb, ErrorModel, DescriptorBase, ImportedItem, \
-    StatusEnum, DescriptorValue
-from init import APP_NAME, VERSION, CONFIG, DEFAULT_AGENDA, MONGO_CONNECTION_STRING, CC, LOG, API_ROOT_PATH
+    StatusEnum, DescriptorValue, DominoImport, Dictionary
+from init import APP_NAME, VERSION, CONFIG, DEFAULT_AGENDA, MONGO_CONNECTION_STRING, CC, API_ROOT_PATH
 
 logging.basicConfig(
     format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -91,7 +91,7 @@ async def uvicorn_exception_handler(request: Request, exc: ApiError):
         content={"message": msg},
     )
 
-
+"""
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     LOGGER.info(f"{__name__}.http - Request: {request.method} {request.url}")
@@ -104,7 +104,7 @@ async def log_requests(request: Request, call_next):
     # Protokolování odpovědi
     LOGGER.info(f"{__name__}.http - Response status: {response.status_code}")
     return response
-
+"""
 
 @app.delete(
     path='/descriptor/{dictionary}/{key}',
@@ -157,8 +157,9 @@ async def descriptor_get(
     if key in [None, '']:
         raise ApiError(code=400, message='Missing key')
     reply = await DescriptorDb.by_key(dictionary=dictionary, key=key)
-    if not reply:
+    if (reply is None) or (not reply):
         LOGGER.info(f"GET /descriptor/{dictionary}/{key} NOT FOUND")
+        raise  ApiError(code=404, message='Descriptor not found')
     LOGGER.info(f"GET /descriptor/{dictionary}/{key} FOUND")
     out = reply.document
     return out
@@ -402,6 +403,42 @@ async def export_dictionary(
 
 
 @app.post(
+    path='/import/domino',
+    response_model=ReplyImported,
+    responses={'default': {'model': ErrorModel}},
+    summary='Importuje deskriptory do různých slovníků',
+    tags=['admins']
+)
+async def import_domino(
+        replace: Annotated[Union[bool, None], Path(title='Nahradit původní hodnoty')] = None,
+        body: Annotated[DominoImport, Body(title='Číselník z Domina')] = None,
+        api_key: str = Depends(header_scheme)
+) -> Union[ReplyImported, ErrorModel]:
+    if not is_api_authorized(key=api_key):
+        raise ApiError(code=403, message='Forbidden')
+    if replace is None:
+        replace = False
+    if body is None:
+        raise ApiError(code=400, message='Missing body')
+    if body.dictionary in [None, '']:
+        raise ApiError(code=400, message='Missing dictionary')
+    if body.value_key_text in [None, '']:
+        raise ApiError(code=400, message='Missing data values')
+    txt_list = body.value_key_text.split('\n')
+    dictionary = body.dictionary
+    data = []
+    for item in txt_list:
+        key = item.split('|')[-1]
+        value = item.split('|')[0]
+        d = DescriptorBase(dictionary=dictionary, key=key, key_alt='', active=True, values=[DescriptorValue(lang='cs', value=value, value_alt='')])
+        data.append(d)
+    if not data:
+        raise ApiError(code=400, message='data contains nothing')
+    out = await import_data(data=data, replace=replace)
+    return out
+
+
+@app.post(
     path='/import',
     response_model=ReplyImported,
     responses={'default': {'model': ErrorModel}},
@@ -421,42 +458,7 @@ async def import_descriptors(
         raise ApiError(code=400, message='Missing body')
     if not body:
         raise ApiError(code=400, message='Data is empty')
-    out = ReplyImported(count_added=0, count_rejected=0, count_replaced=0, count_error=0)
-    out.added = []
-    out.replaced = []
-    out.rejected = []
-    out.error = []
-    i = 0
-    for item in body:
-        imp = ImportedItem(dictionary=item.dictionary, key=item.key, status=None)
-        i += 1
-        try:
-            reply = await DescriptorDb.by_key(dictionary=imp.dictionary, key=item.key)
-            if reply is None:
-                b1 = DescriptorBase.model_dump(item)
-                dbdoc = DescriptorDb(**b1)
-                await DescriptorDb.insert_one(dbdoc)
-                imp.status = StatusEnum.ADDED
-                out.count_added += 1
-                out.added.append(imp)
-            else:
-                if replace:
-                    reply.key_alt = item.key_alt
-                    reply.active = item.active
-                    reply.values = item.values
-                    await reply.replace(None)
-                    imp.status = StatusEnum.REPLACED
-                    out.count_replaced += 1
-                    out.replaced.append(imp)
-                else:
-                    imp.status = StatusEnum.REJECTED
-                    out.count_rejected += 1
-                    out.rejected.append(imp)
-        except Exception as e:
-            imp.status = StatusEnum.ERROR
-            out.count_error += 1
-            out.error.append(imp)
-            LOGGER.error(f'IMPORT item {i} FAILED: {str(e)}')
+    out = await import_data(data=body, replace=replace)
     return out
 
 
@@ -488,6 +490,11 @@ async def info_api_get() -> Union[JSONResponse, ErrorModel]:
                     red += 1
     if green == 1:
         out['status'] = 'GREEN'
+        out['dictionaries'] = []
+        dl = await DescriptorDb.dictionary_list()
+        if dl is not None and bool(dl):
+            for item in dl:
+                out['dictionaries'].append(Dictionary.model_dump(item))
     elif red == 0:
         out['status'] = 'YELLOW'
     return JSONResponse(status_code=200, content=out)
