@@ -9,13 +9,13 @@ ARG HOME_DIR=/opt/dictionary
 RUN mkdir -p ${HOME_DIR}
 WORKDIR ${HOME_DIR}
 
-RUN apt-get -y update; apt-get -y install curl
+RUN apt-get -y update; apt-get -y install curl; apt-get install -y build-essential
 
 COPY requirements.txt ${HOME_DIR}
 
 
 ENV SERVICE_ENVIRONMENT=production \
-    API_ROOT_PATH=dict \
+    DICT_ROOT_PATH=dict \
     INSTANCE=PROD \
     PATH="$PATH:${HOME_DIR}" \
     TZ=Europe/Prague
@@ -30,4 +30,6 @@ EXPOSE 8080
 RUN chmod +x ./*.sh
 
 RUN cd ${HOME_DIR}
-ENTRYPOINT ["/bin/bash", "/opt/dictionary/docker-entrypoint.sh"]
+
+HEALTHCHECK CMD curl -I -f http://localhost:8080/ || exit 1
+ENTRYPOINT ["docker-entrypoint.sh"]

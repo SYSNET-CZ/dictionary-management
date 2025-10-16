@@ -1,5 +1,4 @@
-from pymongo import DESCENDING
-
+from beanie import SortDirection
 from init import paging_to_mongo
 
 
@@ -14,7 +13,7 @@ def create_query(
     query_active = {}
     query_search = {}
     sort = 'timestamp'
-    sort_direction = DESCENDING
+    sort_direction = SortDirection.DESCENDING
     if dictionary not in [None, '']:
         query_dictionary = {'dictionary': {"$regex": dictionary, "$options": "i"}}
     if key not in [None, '']:

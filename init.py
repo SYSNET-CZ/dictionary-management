@@ -1,5 +1,7 @@
 import os
 import secrets
+from logging import DEBUG, INFO, WARN
+from logging.config import dictConfig
 
 from pymongo.collation import Collation
 from sysnet_pyutils.utils import LoggedObject, Singleton, api_keys_init, Log, Config
@@ -7,11 +9,10 @@ from sysnet_pyutils.utils import LoggedObject, Singleton, api_keys_init, Log, Co
 VERSION = os.getenv('DICT_VERSION', '2.0.1')
 APP_NAME = os.getenv('DICT_NAME', 'SYSNET Managed Dictionaries API')
 APP_CODE = 'dict'
-DEBUG = os.getenv("DEBUG", 'False').lower() in ('true', '1', 't')
 INSTANCE = os.getenv('INSTANCE', 'DEV')  # DEV, PROD, TEST
 COLLATION = Collation(locale='cs@collation=search')
 
-API_ROOT_PATH = os.getenv('API_ROOT_PATH', APP_CODE)
+API_ROOT_PATH = os.getenv('DICT_ROOT_PATH', APP_CODE)
 
 LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(levelname)s in %(module)s: %(message)s')
 LOG_DATE_FORMAT = os.getenv('LOG_DATE_FORMAT', '%d.%m.%Y %H:%M:%S')
@@ -170,6 +171,117 @@ def paging_to_mongo(start=0, page_size=PAGE_SIZE, page=0, skip=0, limit=999):
 def set_ext_logger(ext_logger):
     if ext_logger is not None:
         LOG.logger = ext_logger
+
+
+ROOT_LEVEL = DEBUG if INSTANCE == "DEV" else INFO
+LOGGING_CONFIG = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'info': {
+            'format': '%(asctime)s %(levelname)-4s [%(filename)s:%(lineno)d] %(message)s',
+            # 'format': '%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'error': {
+            'format': '%(asctime)s %(levelname)s %(name)s-%(process)d::%(module)s|%(lineno)s:: %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+    },
+    'handlers': {
+        'debug_console_handler': {
+            'level': DEBUG,
+            'formatter': 'info',
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+        },
+        'info_console_handler': {
+            'level': INFO,
+            'formatter': 'info',
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+        },
+        "default": {
+            "level": INFO,
+            "formatter": "standard",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",  # Default is stderr
+        },
+        'error_file_handler': {
+            'class': 'logging.FileHandler',
+            'formatter': 'error',
+            'filename': ERROR_FILE_PATH,
+            'level': WARN,
+            'mode': 'a',
+            'encoding': 'utf-8',
+        },
+        'info_rotating_file_handler': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'info',
+            'level': INFO,
+            'filename': LOG_FILE_PATH,
+            'mode': 'a',
+            'encoding': 'utf-8',
+            'maxBytes': 500000,
+            'backupCount': 10
+        },
+        'debug_rotating_file_handler': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'formatter': 'error',
+            'level': DEBUG,
+            'filename': DEBUG_FILE_PATH,
+            'mode': 'a',
+            'encoding': 'utf-8',
+            'maxBytes': 1000000,
+            'backupCount': 10
+        }
+    },
+    'loggers': {
+        '': {  # root logger
+            'level': ROOT_LEVEL,
+            'handlers': ['debug_console_handler', 'debug_rotating_file_handler', 'info_rotating_file_handler',
+                         'error_file_handler'],
+        },
+        'EU_PERMIT_FACTORY': {
+            'level': ROOT_LEVEL,
+            'propagate': False,
+            'handlers': ['info_console_handler', 'info_rotating_file_handler', 'error_file_handler'],
+        },
+        'EU_PERMIT_FACTORY_PLUGIN': {
+            'level': ROOT_LEVEL,
+            'propagate': False,
+            'handlers': ['info_console_handler', 'info_rotating_file_handler', 'error_file_handler'],
+        },
+        "ODM": {
+            'level': ROOT_LEVEL,
+            'propagate': False,
+            'handlers': ['info_console_handler', 'info_rotating_file_handler', 'error_file_handler'],
+        },
+        'COMMONS': {
+            'level': INFO,
+            'propagate': False,
+            'handlers': ['info_console_handler', 'info_rotating_file_handler', 'error_file_handler'],
+        },
+        "uvicorn.error": {
+            'propagate': False,
+            "level": INFO,
+            "handlers": ['info_console_handler', 'info_rotating_file_handler', 'error_file_handler'],
+        },
+        "uvicorn.access": {
+            'propagate': False,
+            "level": INFO,
+            "handlers": ['info_console_handler', 'info_rotating_file_handler', 'error_file_handler'],
+        },
+    },
+}
+
+dictConfig(LOGGING_CONFIG)
+
+
 
 
 LOG = Log()

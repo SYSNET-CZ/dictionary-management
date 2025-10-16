@@ -1,12 +1,10 @@
-version: '3'
-
 services:
-  dict:
+  dictionaries:
     image: sysnetcz/dictionaries:${DICT_VERSION}
-    container_name: dict
+    container_name: dictionaries
     restart: unless-stopped
     volumes:
-      - ./config:/opt/dictionary/conf
+      - ./conf:/opt/dictionary/conf
     environment:
       - TZ=Europe/Prague
       - DICT_VERSION=${DICT_VERSION}

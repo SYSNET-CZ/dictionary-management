@@ -1,8 +1,6 @@
 sysnet-pyutils>=1.0.7
 
-fastapi[all]~=0.115.7
-pydantic~=2.10.6
-pymongo~=4.9.2
-beanie~=1.29.0
-six~=1.17.0
-motor~=3.6.1
+fastapi[all]>=0.115.7
+pydantic>=2.10.6
+pymongo>=4.9.2
+beanie>=1.29.0

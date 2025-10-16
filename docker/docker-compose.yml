@@ -1,0 +1,38 @@
+volumes:
+  logs:
+    driver: local
+  backup:
+    external: true
+    name: backup
+
+networks:
+  default:
+    external: true
+    name: databus
+
+services:
+  dictionaries:
+    image: sysnetcz/dictionaries:${DICT_VERSION}
+    container_name: dictionaries
+    restart: unless-stopped
+    volumes:
+      - ./conf:/opt/dictionary/conf
+      - logs:/opt/dictionary/logs
+      - backup:/opt/dictionary/backup
+    environment:
+      - TZ=Europe/Prague
+      - DICT_VERSION=${DICT_VERSION}
+      - DICT_NAME=${DICT_NAME}
+      - DICT_ROOT_PATH=dict
+      - MONGO_DATABASE=dictionaries
+      - MONGO_HOST=${MONGO_HOST}
+      - MONGO_PORT=${MONGO_PORT}
+      - MONGO_USERNAME=${MONGO_USERNAME}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+    networks:
+      default:
+        aliases:
+          - dictionaries
+          - dict
+    ports:
+      - ${DICT_PORT}:8080

@@ -16,5 +16,5 @@ mongo:
   locale: cs@collation=search
   password: s3cr3t
   port: 27017
-  status: GREEN
+  status: RED
   user: root

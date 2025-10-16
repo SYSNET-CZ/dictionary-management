@@ -3,7 +3,8 @@ from typing import List
 
 from fastapi.security import APIKeyHeader
 
-from api.models import ReplyImported, ImportedItem, DescriptorDb, DescriptorBase, StatusEnum
+from api.model.dictionary import ReplyImported, ImportedItem, DescriptorBaseType, StatusEnum
+from api.model.odm import DbDescriptor
 from init import CONTEXT
 
 headers_no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
@@ -17,7 +18,7 @@ def is_api_authorized(key):
     return CONTEXT.check_api_key(api_key=key)
 
 
-async def import_data(data: List[DescriptorBase], replace: bool):
+async def import_data(data: List[DescriptorBaseType], replace: bool):
     out = ReplyImported(count_added=0, count_rejected=0, count_replaced=0, count_error=0)
     out.added = []
     out.replaced = []
@@ -28,11 +29,11 @@ async def import_data(data: List[DescriptorBase], replace: bool):
         imp = ImportedItem(dictionary=item.dictionary, key=item.key, status=None)
         i += 1
         try:
-            reply = await DescriptorDb.by_key(dictionary=imp.dictionary, key=item.key)
+            reply = await DbDescriptor.by_key(dictionary=imp.dictionary, key=item.key)
             if reply is None:
-                b1 = DescriptorBase.model_dump(item)
-                dbdoc = DescriptorDb(**b1)
-                await DescriptorDb.insert_one(dbdoc)
+                b1 = DescriptorBaseType.model_dump(item)
+                dbdoc = DbDescriptor(**b1)
+                await DbDescriptor.insert_one(dbdoc)
                 imp.status = StatusEnum.ADDED
                 out.count_added += 1
                 out.added.append(imp)

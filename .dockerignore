@@ -1,14 +1,14 @@
 README.md
 LICENSE
 Dockerfile
-docker-compose.yml
+docker/docker-compose.yml
 
 backup/
 conf/
 logs/
 upload/
 data/
-.env
+docker/.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
