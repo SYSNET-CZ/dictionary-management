@@ -24,9 +24,14 @@ async def init_sprint():
 async def consolidate_data():
     reply = await DbDescriptorSav.all_documents()
     i = 0
+    skipped = 0
     for item in reply:
         i += 1
         descriptor = item.consolidated
+        if descriptor is None:
+            skipped += 1
+            print(f"{i}/{len(reply)}: SKIP (None for id={item.identifier})")
+            continue
         await descriptor.replace()
         print(f"{i}/{len(reply)}: {descriptor.identifier}")
-    return len(reply)
+    return len(reply) - skipped

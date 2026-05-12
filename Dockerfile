@@ -1,35 +1,49 @@
-FROM python:3-slim
+FROM python:3.13-slim
 
-LABEL cz.sysnet.vendor="SYSNET s.r.o."
-LABEL cz.sysnet.image.authors="rjaeger@sysnet.cz"
-LABEL description="SYSNET Controlled Dictionaries"
+# OCI standard image labels
+ARG DICT_VERSION=dev
+ARG BUILD_DATE
+ARG VCS_REF
+
+LABEL org.opencontainers.image.title="SYSNET Managed Dictionaries API"
+LABEL org.opencontainers.image.description="REST API pro správu řízených slovníků SYSNET"
+LABEL org.opencontainers.image.version="${DICT_VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${VCS_REF}"
+LABEL org.opencontainers.image.vendor="SYSNET s.r.o."
+LABEL org.opencontainers.image.authors="rjaeger@sysnet.cz"
+LABEL org.opencontainers.image.url="https://sysnet.cz"
+LABEL org.opencontainers.image.source="https://github.com/sysnetcz/dictionary-management"
+LABEL org.opencontainers.image.licenses="AGPL-3.0"
 
 ARG HOME_DIR=/opt/dictionary
 
 RUN mkdir -p ${HOME_DIR}
 WORKDIR ${HOME_DIR}
 
-RUN apt-get -y update; apt-get -y install curl; apt-get install -y build-essential
+# curl pro HEALTHCHECK; build-essential pro C-extensions v requirements
+RUN apt-get -y update \
+    && apt-get -y install --no-install-recommends curl build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ${HOME_DIR}
+COPY requirements.txt ${HOME_DIR}/
 
+RUN python3 -m pip install --upgrade pip \
+    && pip3 install --no-cache-dir -r requirements.txt
+
+COPY . ${HOME_DIR}
 
 ENV SERVICE_ENVIRONMENT=production \
     DICT_ROOT_PATH=dict \
+    DICT_VERSION=${DICT_VERSION} \
     INSTANCE=PROD \
-    PATH="$PATH:${HOME_DIR}" \
     TZ=Europe/Prague
-
-RUN python3 -m pip install --upgrade pip
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-COPY . ${HOME_DIR}
 
 EXPOSE 8080
 
 RUN chmod +x ./*.sh
 
-RUN cd ${HOME_DIR}
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:8080/ || exit 1
 
-HEALTHCHECK CMD curl -I -f http://localhost:8080/ || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]

@@ -25,13 +25,12 @@ class DominoImport(BaseModel):
         Field(
             description='Obsah řízeného slovníku',
             examples=['Průvodní dopis|pd\nObálka|ob'])]
+
+
 class ImportedItem(BaseModel):
     dictionary: Annotated[Union[str, None], Field(description='Řízený slovník', examples=['country'])]
     key: Annotated[Union[str, None], Field(description='Identifikátor deskriptoru', examples=['AT'])]
     status: Annotated[Union[StatusEnum, None], Field(description='Stav importu', examples=['replaced'])]
-    # dictionary: Optional[str] = Field(None, description='Řízený slovník', examples=['country'])
-    # key: Optional[str] = Field(None, description='Identifikátor deskriptoru', examples=['AT'])
-    # status: Optional[StatusEnum] = Field(None, description='Stav importu', examples=['replaced'])
 
 
 class ReplyImported(BaseModel):

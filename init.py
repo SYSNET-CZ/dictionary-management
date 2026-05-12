@@ -6,7 +6,18 @@ from logging.config import dictConfig
 from pymongo.collation import Collation
 from sysnet_pyutils.utils import LoggedObject, Singleton, api_keys_init, Log, Config
 
-VERSION = os.getenv('DICT_VERSION', '2.0.1')
+def _read_version() -> str:
+    """Načte verzi z VERSION souboru; env proměnná DICT_VERSION má přednost."""
+    _root = os.path.dirname(os.path.abspath(__file__))
+    _path = os.path.join(_root, 'VERSION')
+    try:
+        with open(_path) as _f:
+            return _f.read().strip()
+    except OSError:
+        return '0.0.0'
+
+
+VERSION = os.getenv('DICT_VERSION') or _read_version()
 APP_NAME = os.getenv('DICT_NAME', 'SYSNET Managed Dictionaries API')
 APP_CODE = 'dict'
 INSTANCE = os.getenv('INSTANCE', 'DEV')  # DEV, PROD, TEST
@@ -139,12 +150,33 @@ def check_api_key(api_key):
     return CONTEXT
 
 
-def paging_to_mongo(start=0, page_size=PAGE_SIZE, page=0, skip=0, limit=999):
-    if (skip is not None) and (limit is not None):
-        page_size = PAGE_SIZE
-        page = int(skip / PAGE_SIZE)
-        start = skip % PAGE_SIZE
+def paging_to_mongo(start=None, page_size=None, page=None, skip=None, limit=None):
+    """Převede stránkovací parametry na skip/limit pro MongoDB.
+
+    Podporuje dva styly:
+    - skip/limit styl: přímo předat skip a limit
+    - start/page/page_size styl: stránkování přes číslo stránky
+
+    Výchozí hodnoty: skip=0, limit=PAGE_SIZE
+    """
+    # skip/limit styl: skip nebo limit jsou explicitně zadány
+    if skip is not None or limit is not None:
+        if skip is None:
+            skip = 0
+        if limit is None:
+            limit = PAGE_SIZE
+        page_size_out = PAGE_SIZE
+        page_out = int(skip / PAGE_SIZE)
+        start_out = skip % PAGE_SIZE
+        out = {
+            'start': start_out,
+            'page_size': page_size_out,
+            'page': page_out,
+            'skip': skip,
+            'limit': limit,
+        }
     else:
+        # start/page/page_size styl
         if start is None:
             start = 0
         if page_size is None:
@@ -153,18 +185,18 @@ def paging_to_mongo(start=0, page_size=PAGE_SIZE, page=0, skip=0, limit=999):
             page = 0
         page += start // page_size
         start = start % page_size
-        # pokud pocatecni dokument nesouhlasí se začátkem stránky, zkrátí se stránka
+        # pokud počáteční dokument nesouhlasí se začátkem stránky, zkrátí se stránka
         skip = start + page * page_size
         limit = page_size
         if start != 0:
             limit = page_size - start
-    out = {
-        'start': start,
-        'page_size': page_size,
-        'page': page,
-        'skip': skip,
-        'limit': limit
-    }
+        out = {
+            'start': start,
+            'page_size': page_size,
+            'page': page,
+            'skip': skip,
+            'limit': limit,
+        }
     return out
 
 
@@ -280,8 +312,6 @@ LOGGING_CONFIG = {
 }
 
 dictConfig(LOGGING_CONFIG)
-
-
 
 
 LOG = Log()

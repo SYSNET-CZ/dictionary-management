@@ -5,7 +5,7 @@ from init import paging_to_mongo
 def create_query(
         dictionary=None, key=None, lang=None, active=None, search=None,
         start=None, pagesize=None, page=None,
-        skip=0, limit=999):
+        skip=None, limit=None):
     paging = paging_to_mongo(start=start, page_size=pagesize, page=page, skip=skip, limit=limit)
     query_dictionary = {}
     query_key = {}

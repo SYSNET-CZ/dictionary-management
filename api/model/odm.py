@@ -18,13 +18,16 @@ from init import COLLATION
 
 LOGGER = logging.getLogger('ODM')
 
+EXPORT_LIMIT = 1000  # maximální počet záznamů při hromadném čtení; při překročení je zalogován warning
+
+
 class DbDescriptor(Document, DescriptorType):
     identifier: str = Field(
         default_factory=uuid_factory,
         description='Document unique identifier',
         examples=['123e4567-e89b-12d3-a456-426614174000'])
     version: int = 0
-    timestamp: datetime = local_now()
+    timestamp: datetime = Field(default_factory=local_now)
     is_consolidated: Optional[bool] = Field(default=None, description='Descriptor is consolidated')
 
     class Settings:
@@ -77,15 +80,14 @@ class DbDescriptor(Document, DescriptorType):
 
     @property
     def document(self) -> Optional[DescriptorType]:
-        log = logging.getLogger(__name__)
-        log.info(f"{__name__}.document")
+        LOGGER.info(f"{type(self).__name__}.document")
         try:
             dump = self.model_dump()
             out = DescriptorType(**dump)
-            log.info(f"{__name__}.document SUCCESS: {type(out)} ")
+            LOGGER.info(f"{type(self).__name__}.document SUCCESS: {type(out)}")
             return out
         except Exception as e:
-            log.error(f"{__name__}.document FAILED: {str(e)}")
+            LOGGER.error(f"{type(self).__name__}.document FAILED: {str(e)}")
             return None
 
     @classmethod
@@ -121,38 +123,50 @@ class DbDescriptor(Document, DescriptorType):
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorType(**dump)
             out.append(out_item)
         return out
 
     @classmethod
-    async def dictionary(cls, dictionary: str) -> List[DescriptorType]:
+    async def get_by_dictionary(cls, dictionary: str) -> List[DescriptorType]:
+        """Vraci vsechny deskriptory daneho slovniku serazene podle klice.
+        Poznamka: puvodni nazev 'dictionary' byl prejmenovam na 'get_by_dictionary'
+        kvuli konfliktu s Beanie ExpressionField pro ODM pole stejneho jmena.
+        """
         query = {'dictionary': dictionary}
         sort = ('key', SortDirection.ASCENDING)
-        reply = await cls.find(query).limit(1000).skip(0).sort(sort).to_list()
+        reply = await cls.find(query).limit(EXPORT_LIMIT + 1).skip(0).sort(sort).to_list()
+        if len(reply) > EXPORT_LIMIT:
+            LOGGER.warning(f"{cls.__name__}.get_by_dictionary: výsledek oříznut na {EXPORT_LIMIT} záznamů (dictionary={dictionary!r})")
+            reply = reply[:EXPORT_LIMIT]
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorType(**dump)
             out.append(out_item)
         return out
 
     @classmethod
     async def dictionary_list(cls) -> List[DictionaryType]:
-        out = await DbDescriptor.find({}).aggregate(
+        out = await cls.find({}).aggregate(
             [{"$group" : {"_id":"$dictionary", "count":{"$sum":1}}}],
             projection_model=DictionaryType).to_list()
         return out
-
 
     @classmethod
     async def export_dictionary(cls, dictionary: str) -> List[DescriptorBaseType]:
         query = {'dictionary': dictionary}
         sort = ('key', SortDirection.ASCENDING)
-        reply = await cls.find(query).limit(1000).skip(0).sort(sort).to_list()
+        reply = await cls.find(query).limit(EXPORT_LIMIT + 1).skip(0).sort(sort).to_list()
+        if len(reply) > EXPORT_LIMIT:
+            LOGGER.warning(f"{cls.__name__}.export_dictionary: výsledek oříznut na {EXPORT_LIMIT} záznamů (dictionary={dictionary!r})")
+            reply = reply[:EXPORT_LIMIT]
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorBaseType(**dump)
             out.append(out_item)
         return out
@@ -161,10 +175,14 @@ class DbDescriptor(Document, DescriptorType):
     async def export_all(cls) -> List[DescriptorBaseType]:
         query = {}
         sort = ('key', SortDirection.ASCENDING)
-        reply = await cls.find(query).limit(1000).skip(0).sort(sort).to_list()
+        reply = await cls.find(query).limit(EXPORT_LIMIT + 1).skip(0).sort(sort).to_list()
+        if len(reply) > EXPORT_LIMIT:
+            LOGGER.warning(f"{cls.__name__}.export_all: výsledek oříznut na {EXPORT_LIMIT} záznamů")
+            reply = reply[:EXPORT_LIMIT]
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorBaseType(**dump)
             out.append(out_item)
         return out
@@ -185,7 +203,7 @@ class DbDescriptorSav(Document, DescriptorType):
         description='Document unique identifier',
         examples=['123e4567-e89b-12d3-a456-426614174000'])
     version: int = 0
-    timestamp: datetime = local_now()
+    timestamp: datetime = Field(default_factory=local_now)
     is_consolidated: Optional[bool] = Field(default=None, description='Descriptor is consolidated')
 
     class Settings:
@@ -260,7 +278,7 @@ class DbDescriptorSav(Document, DescriptorType):
             # LOGGER.info(f"{type(self).__name__}.consolidated SUCCESS: {type(out)}")
             return out
         except Exception as e:
-            # LOGGER.error(f"{type(self).__name__}.consolidated FAILED: {type(e)} - {str(e)}")
+            LOGGER.error(f"{type(self).__name__}.consolidated FAILED: {type(e)} - {str(e)}")
             return None
 
     @classmethod
@@ -300,38 +318,50 @@ class DbDescriptorSav(Document, DescriptorType):
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorType(**dump)
             out.append(out_item)
         return out
 
     @classmethod
-    async def dictionary(cls, dictionary: str) -> List[DescriptorType]:
+    async def get_by_dictionary(cls, dictionary: str) -> List[DescriptorType]:
+        """Vraci vsechny deskriptory daneho slovniku serazene podle klice.
+        Poznamka: puvodni nazev 'dictionary' byl prejmenovam na 'get_by_dictionary'
+        kvuli konfliktu s Beanie ExpressionField pro ODM pole stejneho jmena.
+        """
         query = {'dictionary': dictionary}
         sort = ('key', SortDirection.ASCENDING)
-        reply = await cls.find(query).limit(1000).skip(0).sort(sort).to_list()
+        reply = await cls.find(query).limit(EXPORT_LIMIT + 1).skip(0).sort(sort).to_list()
+        if len(reply) > EXPORT_LIMIT:
+            LOGGER.warning(f"{cls.__name__}.get_by_dictionary: výsledek oříznut na {EXPORT_LIMIT} záznamů (dictionary={dictionary!r})")
+            reply = reply[:EXPORT_LIMIT]
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorType(**dump)
             out.append(out_item)
         return out
 
     @classmethod
     async def dictionary_list(cls) -> List[DictionaryType]:
-        out = await DbDescriptor.find({}).aggregate(
+        out = await cls.find({}).aggregate(
             [{"$group" : {"_id":"$dictionary", "count":{"$sum":1}}}],
             projection_model=DictionaryType).to_list()
         return out
-
 
     @classmethod
     async def export_dictionary(cls, dictionary: str) -> List[DescriptorBaseType]:
         query = {'dictionary': dictionary}
         sort = ('key', SortDirection.ASCENDING)
-        reply = await cls.find(query).limit(1000).skip(0).sort(sort).to_list()
+        reply = await cls.find(query).limit(EXPORT_LIMIT + 1).skip(0).sort(sort).to_list()
+        if len(reply) > EXPORT_LIMIT:
+            LOGGER.warning(f"{cls.__name__}.export_dictionary: výsledek oříznut na {EXPORT_LIMIT} záznamů (dictionary={dictionary!r})")
+            reply = reply[:EXPORT_LIMIT]
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorBaseType(**dump)
             out.append(out_item)
         return out
@@ -340,10 +370,14 @@ class DbDescriptorSav(Document, DescriptorType):
     async def export_all(cls) -> List[DescriptorBaseType]:
         query = {}
         sort = ('key', SortDirection.ASCENDING)
-        reply = await cls.find(query).limit(1000).skip(0).sort(sort).to_list()
+        reply = await cls.find(query).limit(EXPORT_LIMIT + 1).skip(0).sort(sort).to_list()
+        if len(reply) > EXPORT_LIMIT:
+            LOGGER.warning(f"{cls.__name__}.export_all: výsledek oříznut na {EXPORT_LIMIT} záznamů")
+            reply = reply[:EXPORT_LIMIT]
         out = []
         for item in reply:
             dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])  # UUID -> str konverze pro stara data
             out_item = DescriptorBaseType(**dump)
             out.append(out_item)
         return out

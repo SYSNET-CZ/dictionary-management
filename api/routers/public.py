@@ -74,14 +74,8 @@ async def get_descriptor_dictionary_list(
 ) -> Union[List[DescriptorType], ErrorModel]:
     if dictionary in [None, '']:
         raise ApiError(code=400, message='Missing dictionary')
-    if skip is None:
-        skip = 0
-    if limit is None:
-        limit = 999
     query, paging, sort = create_query(dictionary=dictionary, key=key, lang=lang, active=active, search=query, skip=skip, limit=limit)
     reply = await DbDescriptor.by_query(query=query, paging=paging, sort=sort)
-    if reply is None or not bool(reply):
-        raise ApiError(code=404, message='Nothing found')
-    if reply.count == 0:
+    if not reply:
         raise ApiError(code=404, message='Nothing found')
     return reply

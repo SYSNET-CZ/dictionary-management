@@ -47,8 +47,9 @@ async def descriptor_delete(
     reply = await DbDescriptor.by_key(dictionary=dictionary, key=key)
     if not reply:
         LOGGER.info(f"DELETE /descriptor/{dictionary}/{key} NOT FOUND")
+        raise ApiError(code=404, message=f"DescriptorType {dictionary}/{key} not found")
     LOGGER.info(f"DELETE /descriptor/{dictionary}/{key} FOUND")
-    reply1 = await reply.delete(None)
+    reply1 = await reply.delete()
     return reply1.acknowledged
 
 
@@ -82,6 +83,7 @@ async def descriptor_patch_activate(
     reply = await DbDescriptor.by_key(dictionary=dictionary, key=key)
     if not reply:
         LOGGER.info(f"PATCH /descriptor/activate/{dictionary}/{key} NOT FOUND")
+        raise ApiError(code=404, message=f"DescriptorType {dictionary}/{key} not found")
     LOGGER.info(f"PATCH /descriptor/activate/{dictionary}/{key} FOUND")
     reply1 = await reply.activate(doit=doit)
     out = reply1.document
@@ -116,7 +118,7 @@ async def descriptor_post(
     reply = await DbDescriptor.by_key(dictionary=dictionary, key=key)
     if reply:
         LOGGER.info(f"POST /descriptor/{dictionary}/{key} FOUND")
-        raise ApiError(code=404, message=f"DescriptorType {dictionary}/{key} already exist")
+        raise ApiError(code=409, message=f"DescriptorType {dictionary}/{key} already exist")
     try:
         b1 = DescriptorBaseType.model_dump(body)
         dbdoc = DbDescriptor(**b1)
@@ -175,6 +177,7 @@ async def descriptor_put(
     reply = await DbDescriptor.by_key(dictionary=dictionary, key=key)
     if not reply:
         LOGGER.info(f"PUT /descriptor/{dictionary}/{key} NOT FOUND")
+        raise ApiError(code=404, message=f"DescriptorType {dictionary}/{key} not found")
     LOGGER.info(f"PUT /descriptor/{dictionary}/{key} FOUND")
     LOGGER.debug(f'PUT /descriptor/{dictionary}/{key} - REPLY: {type(reply)} ')
     b = reply.model_dump()
@@ -211,13 +214,13 @@ async def export_all(api_key: str = Depends(header_scheme)) -> Union[List[Descri
         raise ApiError(code=403, message='Forbidden')
     try:
         out = await DbDescriptor.export_all()
-        if out is None or not bool(out):
-            raise ApiError(code=404, message='Nothing found')
-        LOGGER.error(f'GET /export done: {len(out)}')
-        return out
     except Exception as e:
         LOGGER.error(f'GET /export FAILED: {str(e)}')
         raise ApiError(code=500, message=str(e))
+    if not out:
+        raise ApiError(code=404, message='Nothing found')
+    LOGGER.info(f'GET /export done: {len(out)}')
+    return out
 
 
 @router.get(
@@ -234,18 +237,18 @@ async def export_dictionary(
 ) -> Union[List[DescriptorBaseType], ErrorModel]:
     if not is_api_authorized(key=api_key):
         raise ApiError(code=403, message='Forbidden')
-    LOGGER.info(f'GET /export')
+    LOGGER.info(f'GET /export/{dictionary}')
     if dictionary in [None, '']:
         raise ApiError(code=400, message='Missing dictionary')
     try:
         out = await DbDescriptor.export_dictionary(dictionary=dictionary)
-        if out is None or not bool(out):
-            raise ApiError(code=404, message='Nothing found')
-        LOGGER.error(f'GET /export/{dictionary} done: {len(out)}')
-        return out
     except Exception as e:
         LOGGER.error(f'GET /export/{dictionary} FAILED: {str(e)}')
         raise ApiError(code=500, message=str(e))
+    if not out:
+        raise ApiError(code=404, message='Nothing found')
+    LOGGER.info(f'GET /export/{dictionary} done: {len(out)}')
+    return out
 
 
 @router.post(
@@ -255,7 +258,7 @@ async def export_dictionary(
     summary='Importuje deskriptory do různých slovníků',
 )
 async def import_domino(
-        replace: Annotated[Union[bool, None], Path(title='Nahradit původní hodnoty')] = None,
+        replace: Annotated[Union[bool, None], Query(title='Nahradit původní hodnoty')] = None,
         body: Annotated[DominoImport, Body(title='Číselník z Domina')] = None,
         api_key: str = Depends(header_scheme)
 ) -> Union[ReplyImported, ErrorModel]:
@@ -290,7 +293,7 @@ async def import_domino(
     summary='Importuje deskriptory do různých slovníků',
 )
 async def import_descriptors(
-        replace: Annotated[Union[bool, None], Path(title='Nahradit původní hodnoty')] = None,
+        replace: Annotated[Union[bool, None], Query(title='Nahradit původní hodnoty')] = None,
         body: Annotated[List[DescriptorBaseType], Body(title='Seznam deskriptorů')] = None,
         api_key: str = Depends(header_scheme)
 ) -> Union[ReplyImported, ErrorModel]:
