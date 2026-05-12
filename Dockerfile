@@ -41,7 +41,7 @@ ENV SERVICE_ENVIRONMENT=production \
 
 EXPOSE 8080
 
-RUN chmod +x ./*.sh
+RUN sed -i 's/\r//' ./*.sh && chmod +x ./*.sh
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:8080/ || exit 1

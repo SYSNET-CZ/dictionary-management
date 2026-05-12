@@ -57,7 +57,22 @@ coverage.xml
 *,cover
 .hypothesis/
 venv/
+.venv/
 .python-version
+
+# Git history
+.git/
+.gitignore
+
+# Beads task tracking
+.beads/
+
+# Local build artefacts
+build_log.txt
+build_err.txt
+
+# Tests
+tests/
 
 # Translations
 *.mo
