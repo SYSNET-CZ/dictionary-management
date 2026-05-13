@@ -15,7 +15,7 @@ from sysnet_pyutils.models.general import ErrorModel, ApiError
 
 from api.model.dictionary import DictionaryType
 from api.model.odm import DbDescriptor
-from api.routers import public, admins
+from api.routers import public, admins, monitor
 from init import APP_NAME, VERSION, CONFIG, DEFAULT_AGENDA, MONGO_CONNECTION_STRING, CC, API_ROOT_PATH, LOG
 
 logging.basicConfig(
@@ -71,7 +71,8 @@ app = FastAPI(
     version='2.0.0',
     openapi_tags=[
         {"name": "info", "description": "Informace o službě"},
-        {"name": "admins", "description": "Operace pro správce"},
+        {"name": "admins", "description": "Operace pro správce — CRUD, import, export"},
+        {"name": "monitor", "description": "Monitoring a statistiky — pouze pro správce"},
         {"name": "public", "description": "Operace pro veřejné uživatele"},
     ],
     root_path=f"/{API_ROOT_PATH}",
@@ -177,3 +178,5 @@ async def get_info() -> Union[JSONResponse, ErrorModel]:
 app.include_router(public.router)
 
 app.include_router(admins.router)
+
+app.include_router(monitor.router)

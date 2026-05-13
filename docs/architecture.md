@@ -19,32 +19,32 @@ SYSNET Managed Dictionaries je bezstavová RESTful API služba pro správu říz
 ## Strukturální přehled
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                        FastAPI app                       │
-│                                                         │
-│  ┌──────────────────┐   ┌─────────────────────────────┐ │
-│  │  public router   │   │       admins router         │ │
-│  │  (bez auth)      │   │  (vyžaduje X-API-KEY)       │ │
-│  │                  │   │                             │ │
-│  │  GET /descriptor │   │  POST/PUT/DELETE /descriptor│ │
-│  │  GET /suggest    │   │  GET/POST /export, /import  │ │
-│  │  GET /info       │   │                             │ │
-│  └────────┬─────────┘   └──────────────┬──────────────┘ │
-│           │                            │                 │
-│           └──────────────┬─────────────┘                 │
-│                          │                               │
-│              ┌───────────▼──────────────┐                │
-│              │    api/model/odm.py      │                │
-│              │                         │                 │
-│              │  DbDescriptor           │                 │
-│              │  DbDescriptorSav        │                 │
-│              └───────────┬─────────────┘                 │
-└──────────────────────────┼─────────────────────────────-─┘
-                           │
-              ┌────────────▼────────────┐
-              │   MongoDB               │
-              │   kolekce "descriptor"  │
-              └─────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                          FastAPI app                              │
+│                                                                  │
+│  ┌──────────────────┐  ┌────────────────────┐  ┌──────────────┐ │
+│  │  public router   │  │   admins router    │  │monitor router│ │
+│  │  (bez auth)      │  │  (X-API-KEY)       │  │  (X-API-KEY) │ │
+│  │                  │  │                    │  │              │ │
+│  │  GET /descriptor │  │  POST/PUT/DELETE   │  │  GET /stats  │ │
+│  │  GET /suggest    │  │  /descriptor       │  │  GET /health │ │
+│  │  GET /info       │  │  /export, /import  │  │  GET /dict/  │ │
+│  └────────┬─────────┘  └────────┬───────────┘  └──────┬───────┘ │
+│           │                     │                      │         │
+│           └─────────────────────┬──────────────────────┘         │
+│                                 │                                 │
+│                     ┌───────────▼──────────────┐                 │
+│                     │    api/model/odm.py       │                 │
+│                     │                          │                 │
+│                     │  DbDescriptor            │                 │
+│                     │  DbDescriptorSav         │                 │
+│                     └───────────┬──────────────┘                 │
+└─────────────────────────────────┼────────────────────────────────┘
+                                  │
+                     ┌────────────▼────────────┐
+                     │   MongoDB               │
+                     │   kolekce "descriptor"  │
+                     └─────────────────────────┘
 ```
 
 ## Klíčové moduly
@@ -78,6 +78,20 @@ Veřejné endpointy bez autentizace. Pouze čtení.
 ### `api/routers/admins.py`
 
 Admin endpointy chráněné API klíčem. Zápis, mazání, import, export.
+
+### `api/routers/monitor.py`
+
+Monitoring endpointy chráněné API klíčem. Tři endpointy:
+
+- `GET /monitor/stats?hours=24` — agregované statistiky kolekce (celkové součty, per-slovník breakdown, nedávno přidané/upravené záznamy). Tři aggregation pipeline dotazy v jednom požadavku.
+- `GET /monitor/health` — stav MongoDB a detaily kolekce (počet dokumentů, indexy). Vrátí `200` i při stavu RED; stav je v těle odpovědi. Indexy čte přes `get_pymongo_collection().index_information()`.
+- `GET /monitor/dict/{dictionary}` — detailní statistiky jednoho slovníku plus ukázka 10 naposledy upravených klíčů.
+
+Pomocné funkce sdílené routerem: `_check_auth()`, `_check_mongo()` (503 pokud `CONFIG['mongo']['status'] != 'GREEN'`), `_aggregate()` (wrapper nad `find({}).aggregate().to_list()` s logováním chyb).
+
+### `api/model/admin.py`
+
+Pydantic modely pro monitoring endpointy: `AdminStatsOut`, `AdminHealthOut`, `DictionaryDetailOut`, `DictionaryBreakdown`, `IndexInfo`.
 
 ### `api/commons.py`
 

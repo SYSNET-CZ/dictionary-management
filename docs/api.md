@@ -388,6 +388,124 @@ curl -X POST "http://localhost:8000/import/legacy/file?replace=false" \
 
 ---
 
+## Monitoring endpointy (vyžadují `X-API-KEY`)
+
+Monitoring endpointy vracejí statistiky a stav databáze. Přístup je řízen stejným mechanismem jako admin endpointy.
+
+---
+
+### `GET /monitor/stats`
+
+Agregované statistiky celé kolekce deskriptorů. Výpočet probíhá přes MongoDB aggregation pipeline (tři round-tripy).
+
+**Query parametry:**
+
+| Parametr | Typ | Default | Popis |
+|----------|-----|---------|-------|
+| `hours` | int | `24` | Okno pro výpočet "nedávno přidaných/upravených" záznamů (1–720) |
+
+**Odpověď `200`:**
+```json
+{
+  "generated_at": "2024-06-01T10:00:00Z",
+  "period_hours": 24,
+  "total_descriptors": 349,
+  "total_dictionaries": 2,
+  "active_descriptors": 343,
+  "inactive_descriptors": 6,
+  "recently_added": 5,
+  "recently_modified": 12,
+  "by_dictionary": [
+    {
+      "dictionary": "country",
+      "count": 249,
+      "active": 245,
+      "inactive": 4,
+      "last_modified": "2024-06-01T10:00:00Z"
+    },
+    {
+      "dictionary": "species",
+      "count": 100,
+      "active": 98,
+      "inactive": 2,
+      "last_modified": "2024-05-01T08:00:00Z"
+    }
+  ]
+}
+```
+
+Definice polí:
+- `recently_added` — záznamy s `version=1` a `timestamp >= now - hours`
+- `recently_modified` — záznamy s `version>1` a `timestamp >= now - hours`
+
+**Chyby:** `403` neplatný klíč, `422` neplatný parametr `hours`, `503` MongoDB nedostupná.
+
+---
+
+### `GET /monitor/health`
+
+Stav MongoDB a detaily kolekce. Vrátí `200` i při stavu RED (nevyvolává 503) — stav je obsažen v těle odpovědi.
+
+**Odpověď `200` (GREEN):**
+```json
+{
+  "status": "GREEN",
+  "mongo_status": "GREEN",
+  "collection_name": "descriptor",
+  "document_count": 349,
+  "index_count": 3,
+  "indexes": [
+    { "name": "_id_", "keys": {"_id": 1} },
+    { "name": "idx_key", "keys": {"key": 1} },
+    { "name": "idx_dict_key", "keys": {"dictionary": 1, "key": 1} }
+  ],
+  "version": "2.0.1"
+}
+```
+
+**Odpověď `200` (RED):**
+```json
+{
+  "status": "RED",
+  "mongo_status": "RED",
+  "collection_name": "descriptor",
+  "document_count": 0,
+  "index_count": 0,
+  "indexes": [],
+  "version": "2.0.1"
+}
+```
+
+**Chyby:** `403` neplatný klíč, `503` DB dotaz selhal (pouze při stavu GREEN ale chybě při čtení).
+
+---
+
+### `GET /monitor/dict/{dictionary}`
+
+Detailní statistiky jednoho slovníku plus ukázka 10 naposledy upravených klíčů.
+
+**Path parametry:**
+
+| Parametr | Typ | Popis |
+|----------|-----|-------|
+| `dictionary` | string | Kód řízeného slovníku |
+
+**Odpověď `200`:**
+```json
+{
+  "dictionary": "country",
+  "count": 249,
+  "active": 245,
+  "inactive": 4,
+  "last_modified": "2024-06-01T10:00:00Z",
+  "sample_keys": ["AT", "CZ", "DE", "FR", "GB", "IT", "PL", "SK", "US", "XX"]
+}
+```
+
+**Chyby:** `403` neplatný klíč, `404` slovník neexistuje, `503` MongoDB nedostupná.
+
+---
+
 ## Chybové odpovědi
 
 Všechny chyby mají formát:
@@ -403,6 +521,7 @@ Všechny chyby mají formát:
 | `404` | Deskriptor nebo slovník nenalezen |
 | `409` | Deskriptor již existuje (při POST) |
 | `500` | Interní chyba serveru |
+| `503` | MongoDB nedostupná |
 
 ---
 
