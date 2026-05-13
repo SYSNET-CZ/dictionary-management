@@ -150,3 +150,84 @@ class TestGetDescriptorList:
         with patch("api.routers.public.DbDescriptor.by_query", AsyncMock(return_value=descriptors)):
             resp = await client.get("/descriptor/country?active=true")
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GET /suggest/{dictionary} — typeahead / autocomplete
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+class TestGetSuggest:
+
+    async def test_returns_list_on_match(self, client):
+        descriptors = [make_descriptor(key="AT"), make_descriptor(key="AU")]
+        with patch("api.routers.public.DbDescriptor.suggest", AsyncMock(return_value=descriptors)):
+            resp = await client.get("/suggest/country?prefix=A")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+    async def test_empty_result_returns_404(self, client):
+        with patch("api.routers.public.DbDescriptor.suggest", AsyncMock(return_value=[])):
+            resp = await client.get("/suggest/country?prefix=xyz")
+        assert resp.status_code == 404
+
+    async def test_missing_prefix_returns_422(self, client):
+        """Parametr prefix je povinný — bez něj FastAPI vrátí 422."""
+        resp = await client.get("/suggest/country")
+        assert resp.status_code == 422
+
+    async def test_prefix_too_short_returns_422(self, client):
+        """min_length=1 — prázdný prefix musí selhat validací."""
+        resp = await client.get("/suggest/country?prefix=")
+        assert resp.status_code == 422
+
+    async def test_limit_above_50_returns_422(self, client):
+        """le=50 — limit>50 musí selhat validací."""
+        resp = await client.get("/suggest/country?prefix=A&limit=51")
+        assert resp.status_code == 422
+
+    async def test_limit_zero_returns_422(self, client):
+        """ge=1 — limit=0 musí selhat validací."""
+        resp = await client.get("/suggest/country?prefix=A&limit=0")
+        assert resp.status_code == 422
+
+    async def test_suggest_called_with_correct_args(self, client):
+        """Ověří, že endpoint předává správné argumenty do DbDescriptor.suggest."""
+        received: dict = {}
+
+        async def capture(dictionary, prefix, lang, limit):
+            received.update({"dictionary": dictionary, "prefix": prefix,
+                             "lang": lang, "limit": limit})
+            return [make_descriptor()]
+
+        with patch("api.routers.public.DbDescriptor.suggest", side_effect=capture):
+            await client.get("/suggest/country?prefix=Rak&lang=cs&limit=10")
+
+        assert received["dictionary"] == "country"
+        assert received["prefix"] == "Rak"
+        assert received["lang"] == "cs"
+        assert received["limit"] == 10
+
+    async def test_default_limit_is_15(self, client):
+        """Výchozí limit je 15, pokud není zadán."""
+        received: dict = {}
+
+        async def capture(dictionary, prefix, lang, limit):
+            received["limit"] = limit
+            return [make_descriptor()]
+
+        with patch("api.routers.public.DbDescriptor.suggest", side_effect=capture):
+            await client.get("/suggest/country?prefix=A")
+
+        assert received["limit"] == 15
+
+    async def test_response_schema_contains_key_and_values(self, client):
+        """Response musí obsahovat key a values pro UI našeptávače."""
+        descriptors = [make_descriptor(key="AT")]
+        with patch("api.routers.public.DbDescriptor.suggest", AsyncMock(return_value=descriptors)):
+            resp = await client.get("/suggest/country?prefix=AT")
+        data = resp.json()
+        assert data[0]["key"] == "AT"
+        assert "values" in data[0]

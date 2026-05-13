@@ -14,6 +14,7 @@ SYSNET Managed Dictionaries je bezstavová RESTful API služba pro správu říz
 | ODM | Beanie | 1.29+ |
 | MongoDB driver | pymongo (async) | 4.9+ |
 | Validace dat | Pydantic | 2.x |
+| Utility | sysnet-pyutils | 1.7.5+ |
 
 ## Strukturální přehled
 
@@ -26,7 +27,8 @@ SYSNET Managed Dictionaries je bezstavová RESTful API služba pro správu říz
 │  │  (bez auth)      │   │  (vyžaduje X-API-KEY)       │ │
 │  │                  │   │                             │ │
 │  │  GET /descriptor │   │  POST/PUT/DELETE /descriptor│ │
-│  │  GET /info       │   │  GET/POST /export, /import  │ │
+│  │  GET /suggest    │   │  GET/POST /export, /import  │ │
+│  │  GET /info       │   │                             │ │
 │  └────────┬─────────┘   └──────────────┬──────────────┘ │
 │           │                            │                 │
 │           └──────────────┬─────────────┘                 │
@@ -63,6 +65,8 @@ Exportuje:
 
 Pydantic v2 modely pro request/response serializaci. Žádná byznysová logika.
 
+`DescriptorBaseType` dědí z `GlobalModel` (sysnet-pyutils ≥ 1.7.5), který přidává `@field_validator("*", mode="before")` normalizující všechna `datetime` pole na UTC — naivní hodnoty jsou nejprve lokalizovány jako Europe/Prague. Pravidlo se propaguje do `DescriptorType` → `DbDescriptor`.
+
 ### `api/model/odm.py`
 
 Beanie ODM modely mapované na MongoDB kolekci `descriptor`. Obsahuje veškerou databázovou logiku. Viz [data-model.md](data-model.md).
@@ -78,7 +82,7 @@ Admin endpointy chráněné API klíčem. Zápis, mazání, import, export.
 ### `api/commons.py`
 
 Pomocné funkce sdílené routery:
-- `create_query()` — sestaví MongoDB query filtr z HTTP parametrů
+- `create_query()` — sestaví MongoDB query filtr z HTTP parametrů; výchozí řazení je `key ASC`
 - `update_changed_values()` — in-place aktualizace Pydantic objektu z diff slovníků
 
 ### `api/dependencies.py`
@@ -164,3 +168,62 @@ FastAPI lifespan hook (`api/main.py`):
 3. Inicializuje Beanie (`init_beanie`) s dokumentovým modelem `DbDescriptor`
 4. Nastaví stav `GREEN` v `CC.config['mongo']['status']`
 5. Při shutdown nastaví stav `RED` a zavře klientské spojení
+
+## Typeahead / autocomplete
+
+Endpoint `GET /suggest/{dictionary}` je dedikovaný našeptávač. Klíčové vlastnosti:
+
+- Používá **zakotvený regex** `^prefix` — MongoDB může využít B-tree index na rozdíl od unanchored regexu, který způsobuje collection scan.
+- Hledá v `values.value`, `key` a `key_alt` (unií přes `$or`).
+- Vždy filtruje `active=True` — deaktivované záznamy se v návrzích nikdy neobjeví.
+- Výsledky jsou seřazeny abecedně (`key ASC`).
+- Limit 1–50, výchozí 15. Parametr `prefix` je povinný (min. 1 znak), `lang` volitelný.
+- Implementováno jako `DbDescriptor.suggest()` v ODM vrstvě.
+
+Kontrast se starším `GET /descriptor/{dictionary}?query=…`: ten používá `$text` search, který provádí tokenizaci na celá slova — není vhodný pro realtime typeahead (nefunguje pro neúplná slova). Je vhodný pro fulltextové vyhledávání.
+
+## Import endpointy
+
+Služba poskytuje tři import endpointy, všechny chráněné API klíčem:
+
+| Endpoint | Formát vstupu | Určení |
+|----------|---------------|--------|
+| `POST /import` | `List[DescriptorBaseType]` — aktuální formát s `values` strukturou | Standardní import |
+| `POST /import/domino` | `DominoImport` — plain-text `hodnota\|klíč` odřádkovaný seznam | Import z Domino systému |
+| `POST /import/legacy` | `List[LegacyDescriptorImport]` — starý formát s flat `value`/`value_en` jako JSON pole | Jednorázový import ze staré verze |
+| `POST /import/legacy/file` | multipart `UploadFile` — soubor NDJSON (jeden JSON objekt na řádek) | Import ze souboru `descriptor-service_1.json` |
+
+Všechny endpointy sdílejí query parametr `replace: bool = false`. Při `replace=false` jsou existující záznamy odmítnuty (status `rejected`), při `replace=true` přepsány.
+
+Jádro importní logiky je funkce `import_data()` v `api/dependencies.py`. Pracuje s `DescriptorBaseType` — endpointy `/import/domino` a `/import/legacy` transformují svůj vstupní formát před předáním.
+
+### Legacy import (descriptor-service v1)
+
+Starý formát exportu (soubor `data/descriptor-service_1.json`) se liší od aktuálního modelu ve třech bodech:
+
+1. **Struktura hodnot** — flat pole `value` (cs) a `value_en` (en) místo `values: [{lang, value, value_alt}]`
+2. **Identifikátor** — řetězec `"dictionary*key"` místo UUID; nová verze generuje vlastní UUID, starý identifikátor je ignorován
+3. **`_id`** — MongoDB Extended JSON `{"$oid": "..."}` je ignorováno
+
+Model `LegacyDescriptorImport` (`api/model/dictionary.py`) zapouzdřuje transformaci. Metoda `to_descriptor_base()` převádí flat formát na `DescriptorBaseType`. Pydantic `@field_validator` sanitizuje U+FEFF (BOM) a whitespace ze všech string polí — v `descriptor-service_1.json` je jeden záznam se slovníkem `"noti﻿ce_roles"` (ef bb bf v UTF-8, neviditelné v editorech).
+
+**Postup jednorázového importu:**
+
+```bash
+# 1. Transformace JSON Lines → JSON array
+python -c "
+import sys, json
+data = [json.loads(l) for l in open('data/descriptor-service_1.json') if l.strip()]
+print(json.dumps(data))
+" > /tmp/legacy_payload.json
+
+# 2. Import (první průchod bez replace — vidíme co je nové)
+curl -X POST "http://localhost:8000/import/legacy?replace=false" \
+  -H "X-API-KEY: <key>" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/legacy_payload.json
+
+# 3. Případný druhý průchod s replace=true pro přepis existujících
+```
+
+Celkem 757 záznamů ve 71 slovnících — pod limitem `EXPORT_LIMIT=1000`, takže import proběhne v jednom požadavku.

@@ -187,6 +187,36 @@ class DbDescriptor(Document, DescriptorType):
             out.append(out_item)
         return out
 
+    @classmethod
+    async def suggest(
+            cls, dictionary: str, prefix: str,
+            lang: Optional[str] = None, limit: int = 15) -> List[DescriptorType]:
+        """Efektivní prefix-matching pro typeahead/autocomplete.
+
+        Používá zakotvený regex ``^prefix`` — MongoDB může využít B-tree index
+        (na rozdíl od unanchored regexu, který způsobuje collection scan).
+        Vždy filtruje ``active=True`` a řadí výsledky abecedně podle klíče.
+        """
+        import re
+        safe_prefix = re.escape(prefix)
+        pattern = f'^{safe_prefix}'
+        or_clauses: list = [
+            {'values.value': {'$regex': pattern, '$options': 'i'}},
+            {'key': {'$regex': pattern, '$options': 'i'}},
+            {'key_alt': {'$regex': pattern, '$options': 'i'}},
+        ]
+        query: dict = {'dictionary': dictionary, 'active': True, '$or': or_clauses}
+        if lang not in (None, ''):
+            query['values.lang'] = lang
+        sort = ('key', SortDirection.ASCENDING)
+        reply = await cls.find(query).limit(limit).skip(0).sort(sort).to_list()
+        out = []
+        for item in reply:
+            dump = item.model_dump()
+            dump['identifier'] = str(dump['identifier'])
+            out.append(DescriptorType(**dump))
+        return out
+
     async def activate(self, doit=True, save=True):
         if doit is None:
             doit = True

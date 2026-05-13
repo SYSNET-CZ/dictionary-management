@@ -316,6 +316,73 @@ curl -X POST "http://localhost:8000/import?replace=false" \
 
 ---
 
+## Import — legacy formát (descriptor-service v1)
+
+Pokud migrujete data ze starší verze služby (soubor `descriptor-service_1.json`), použijte jeden ze dvou legacy importních endpointů.
+
+### Rozdíly oproti aktuálnímu formátu
+
+| Pole | Starý formát | Nový formát |
+|------|-------------|-------------|
+| Překlad do češtiny | `"value": "Česko"` | `values: [{"lang": "cs", "value": "Česko", ...}]` |
+| Anglický překlad | `"value_en": "Czechia"` | `values: [{"lang": "en", "value": "Czechia", ...}]` |
+| Identifikátor | `"dictionary*key"` — ignorován | Nové UUID generováno automaticky |
+| `_id` | MongoDB ObjectId — ignorován | Nové MongoDB `_id` |
+
+### Varianta A — nahrání souboru (`POST /import/legacy/file`)
+
+Přijímá soubor přímo jako multipart upload. Soubor `descriptor-service_1.json` je ve formátu NDJSON — každý řádek je samostatný JSON objekt.
+
+```bash
+curl -X POST "http://localhost:8000/import/legacy/file?replace=false" \
+  -H "X-API-KEY: vas-klic" \
+  -F "file=@data/descriptor-service_1.json"
+```
+
+Endpoint automaticky:
+- Stripuje BOM na začátku souboru (`utf-8-sig` dekódování)
+- Ignoruje prázdné řádky
+- Sanitizuje embedded U+FEFF (neviditelný BOM uvnitř textu) a okolní whitespace
+
+### Varianta B — JSON pole (`POST /import/legacy`)
+
+Pokud chcete odeslat data přímo jako JSON array (ne soubor):
+
+```bash
+# 1. Převeďte NDJSON → JSON array
+python -c "
+import sys, json
+data = [json.loads(l) for l in open('data/descriptor-service_1.json') if l.strip()]
+print(json.dumps(data))
+" > /tmp/legacy_payload.json
+
+# 2. Import
+curl -X POST "http://localhost:8000/import/legacy?replace=false" \
+  -H "X-API-KEY: vas-klic" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/legacy_payload.json
+```
+
+### Postup migrace
+
+```bash
+# 1. První průchod — bez replace, zjistíte co je nové vs. existující
+curl -X POST "http://localhost:8000/import/legacy/file?replace=false" \
+  -H "X-API-KEY: vas-klic" \
+  -F "file=@data/descriptor-service_1.json"
+
+# Zkontrolujte count_added, count_rejected, count_error v odpovědi
+
+# 2. Druhý průchod — s replace=true pro přepis existujících
+curl -X POST "http://localhost:8000/import/legacy/file?replace=true" \
+  -H "X-API-KEY: vas-klic" \
+  -F "file=@data/descriptor-service_1.json"
+```
+
+Soubor `descriptor-service_1.json` obsahuje 757 záznamů ve 71 slovnících — vše pod limitem 1000, import proběhne v jednom požadavku.
+
+---
+
 ## Omezení a poznámky
 
 - **Limit exportu:** Endpointy `/export` a `/export/{dictionary}` vrátí maximálně 1000 záznamů. Při překročení limitu je výsledek oříznut a v logu se objeví `WARNING`. Pro větší slovníky stránkujte přes `/descriptor/{dictionary}?skip=0&limit=1000`.

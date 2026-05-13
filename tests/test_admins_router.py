@@ -350,3 +350,248 @@ class TestImportDomino:
         body = {"dictionary": "country", "value_key_text": None}
         resp = await client.post("/import/domino", json=body, headers=auth_headers())
         assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+class TestImportLegacy:
+    """Testy endpointu POST /import/legacy."""
+
+    def _legacy_body(self, n=1):
+        """Vraci n zaznamu ve starem formatu descriptor-service v1."""
+        return [
+            {
+                "dictionary": "country",
+                "key": f"X{i}",
+                "key_alt": f"XX{i}",
+                "value": f"Zeme {i}",
+                "value_en": f"Country {i}",
+                "active": True,
+            }
+            for i in range(n)
+        ]
+
+    async def test_import_legacy_added(self, client):
+        result = ReplyImported(
+            count_added=1,
+            added=[ImportedItem(dictionary="country", key="X0", status=StatusEnum.ADDED)],
+        )
+        with patch("api.routers.admins.import_data", AsyncMock(return_value=result)):
+            resp = await client.post(
+                "/import/legacy", json=self._legacy_body(1), headers=auth_headers()
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count_added"] == 1
+
+    async def test_import_legacy_replace_mode(self, client):
+        result = ReplyImported(count_replaced=2)
+        with patch("api.routers.admins.import_data", AsyncMock(return_value=result)):
+            resp = await client.post(
+                "/import/legacy?replace=true",
+                json=self._legacy_body(2),
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert resp.json()["count_replaced"] == 2
+
+    async def test_import_legacy_empty_body_returns_400(self, client):
+        resp = await client.post("/import/legacy", json=[], headers=auth_headers())
+        assert resp.status_code == 400
+
+    async def test_import_legacy_missing_body_returns_4xx(self, client):
+        resp = await client.post("/import/legacy", headers=auth_headers())
+        assert resp.status_code in (400, 422)
+
+    async def test_import_legacy_unauthorized(self, client):
+        resp = await client.post(
+            "/import/legacy",
+            json=self._legacy_body(1),
+            headers={"X-API-KEY": "wrong"},
+        )
+        assert resp.status_code == 403
+
+    async def test_import_legacy_transforms_to_values_structure(self, client):
+        """Verifikuje, ze import_data dostane spravne transformovana data."""
+        captured = []
+
+        async def capturing_import_data(data, replace):
+            captured.extend(data)
+            return ReplyImported(count_added=len(data))
+
+        with patch("api.routers.admins.import_data", side_effect=capturing_import_data):
+            resp = await client.post(
+                "/import/legacy",
+                json=[{
+                    "dictionary": "country",
+                    "key": "CZ",
+                    "key_alt": "CZE",
+                    "value": "Ceska republika",
+                    "value_en": "Czech republic",
+                    "active": True,
+                }],
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert len(captured) == 1
+        item = captured[0]
+        # Musi byt DescriptorBaseType s values strukturou
+        langs = {v.lang: v.value for v in item.values}
+        assert langs.get("cs") == "Ceska republika"
+        assert langs.get("en") == "Czech republic"
+        assert item.key == "CZ"
+        assert item.dictionary == "country"
+
+    async def test_import_legacy_bom_sanitized(self, client):
+        """Zaznam s BOM v nazvu slovniku musi byt sanitizovan pred zapisem."""
+        captured = []
+
+        async def capturing_import_data(data, replace):
+            captured.extend(data)
+            return ReplyImported(count_added=len(data))
+
+        bom = "\ufeff"
+        with patch("api.routers.admins.import_data", side_effect=capturing_import_data):
+            resp = await client.post(
+                "/import/legacy",
+                json=[{
+                    "dictionary": f"noti{bom}ce_roles",
+                    "key": "ORG",
+                    "value": "Organizace",
+                }],
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert captured[0].dictionary == "notice_roles"
+
+    async def test_import_legacy_empty_value_en_produces_only_cs(self, client):
+        """Prazdne value_en nesmi produkovat en zaznam v values."""
+        captured = []
+
+        async def capturing_import_data(data, replace):
+            captured.extend(data)
+            return ReplyImported(count_added=1)
+
+        with patch("api.routers.admins.import_data", side_effect=capturing_import_data):
+            await client.post(
+                "/import/legacy",
+                json=[{"dictionary": "cloning", "key": "F", "value": "Z fotografii", "value_en": ""}],
+                headers=auth_headers(),
+            )
+        assert len(captured[0].values) == 1
+        assert captured[0].values[0].lang == "cs"
+
+
+@pytest.mark.asyncio
+class TestImportLegacyFile:
+    """Testy endpointu POST /import/legacy/file (UploadFile)."""
+
+    def _ndjson_bytes(self, n=2) -> bytes:
+        import json
+        lines = [
+            json.dumps({
+                "dictionary": "country", "key": f"X{i}", "key_alt": f"XX{i}",
+                "value": f"Zeme {i}", "value_en": f"Country {i}", "active": True,
+            })
+            for i in range(n)
+        ]
+        return "\n".join(lines).encode("utf-8")
+
+    def _upload(self, content: bytes, filename="descriptor-service_1.json"):
+        from io import BytesIO
+        return {"file": (filename, BytesIO(content), "application/json")}
+
+    async def test_import_file_added(self, client):
+        result = ReplyImported(
+            count_added=2,
+            added=[
+                ImportedItem(dictionary="country", key="X0", status=StatusEnum.ADDED),
+                ImportedItem(dictionary="country", key="X1", status=StatusEnum.ADDED),
+            ],
+        )
+        with patch("api.routers.admins.import_data", AsyncMock(return_value=result)):
+            resp = await client.post(
+                "/import/legacy/file",
+                files=self._upload(self._ndjson_bytes(2)),
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert resp.json()["count_added"] == 2
+
+    async def test_import_file_replace_mode(self, client):
+        result = ReplyImported(count_replaced=2)
+        with patch("api.routers.admins.import_data", AsyncMock(return_value=result)):
+            resp = await client.post(
+                "/import/legacy/file?replace=true",
+                files=self._upload(self._ndjson_bytes(2)),
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert resp.json()["count_replaced"] == 2
+
+    async def test_import_file_empty_lines_ignored(self, client):
+        import json
+        line = json.dumps({"dictionary": "country", "key": "CZ", "value": "CR", "active": True})
+        content = f"\n\n{line}\n\n".encode("utf-8")
+        captured = []
+
+        async def capturing(data, replace):
+            captured.extend(data)
+            return ReplyImported(count_added=len(data))
+
+        with patch("api.routers.admins.import_data", side_effect=capturing):
+            resp = await client.post(
+                "/import/legacy/file",
+                files=self._upload(content),
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert len(captured) == 1
+
+    async def test_import_file_transforms_to_values(self, client):
+        import json
+        captured = []
+
+        async def capturing(data, replace):
+            captured.extend(data)
+            return ReplyImported(count_added=1)
+
+        line = json.dumps({
+            "dictionary": "country", "key": "CZ", "key_alt": "CZE",
+            "value": "Ceska republika", "value_en": "Czech republic", "active": True,
+        })
+        with patch("api.routers.admins.import_data", side_effect=capturing):
+            resp = await client.post(
+                "/import/legacy/file",
+                files=self._upload(line.encode("utf-8")),
+                headers=auth_headers(),
+            )
+        assert resp.status_code == 200
+        langs = {v.lang: v.value for v in captured[0].values}
+        assert langs["cs"] == "Ceska republika"
+        assert langs["en"] == "Czech republic"
+
+    async def test_import_file_invalid_json_returns_400(self, client):
+        content = b"toto neni json\nani toto"
+        resp = await client.post(
+            "/import/legacy/file",
+            files=self._upload(content),
+            headers=auth_headers(),
+        )
+        assert resp.status_code == 400
+
+    async def test_import_file_empty_file_returns_400(self, client):
+        content = b"\n\n\n"
+        resp = await client.post(
+            "/import/legacy/file",
+            files=self._upload(content),
+            headers=auth_headers(),
+        )
+        assert resp.status_code == 400
+
+    async def test_import_file_unauthorized(self, client):
+        resp = await client.post(
+            "/import/legacy/file",
+            files=self._upload(self._ndjson_bytes(1)),
+            headers={"X-API-KEY": "wrong"},
+        )
+        assert resp.status_code == 403

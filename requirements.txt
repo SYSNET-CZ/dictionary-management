@@ -1,4 +1,4 @@
-sysnet-pyutils>=1.0.7
+sysnet-pyutils>=1.7.5
 
 fastapi[all]>=0.115.7
 pydantic>=2.10.6

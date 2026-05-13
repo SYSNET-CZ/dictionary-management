@@ -12,8 +12,8 @@ def create_query(
     query_lang = {}
     query_active = {}
     query_search = {}
-    sort = 'timestamp'
-    sort_direction = SortDirection.DESCENDING
+    sort = 'key'
+    sort_direction = SortDirection.ASCENDING
     if dictionary not in [None, '']:
         query_dictionary = {'dictionary': {"$regex": dictionary, "$options": "i"}}
     if key not in [None, '']:

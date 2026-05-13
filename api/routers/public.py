@@ -79,3 +79,39 @@ async def get_descriptor_dictionary_list(
     if not reply:
         raise ApiError(code=404, message='Nothing found')
     return reply
+
+
+@router.get(
+    path='/suggest/{dictionary}',
+    response_model=List[DescriptorType],
+    responses={'default': {'model': ErrorModel}},
+    summary='Našeptávač (typeahead/autocomplete)',
+    description=(
+        'Vrátí deskriptory začínající zadaným prefixem. '
+        'Používá zakotvený regex (^prefix) pro efektivní využití B-tree indexu. '
+        'Vždy filtruje pouze aktivní záznamy. Řadí abecedně podle klíče. '
+        'Maximální počet výsledků je 50.'
+    ),
+)
+async def get_suggest(
+        dictionary: Annotated[
+            str,
+            Path(title='Kód slovníku', description='Kód řízeného slovníku')],
+        prefix: Annotated[
+            str,
+            Query(title='Prefix', description='Předpona pro typeahead (min. 1 znak)', min_length=1)],
+        lang: Annotated[
+            Union[str, None],
+            Query(title='Jazyk', description='Filtrovat hodnoty podle jazyka (cs, en, …)')] = None,
+        limit: Annotated[
+            Union[int, None],
+            Query(title='Max výsledků', description='Maximální počet výsledků (1–50)', ge=1, le=50)] = 15,
+) -> Union[List[DescriptorType], ErrorModel]:
+    if dictionary in [None, '']:
+        raise ApiError(code=400, message='Missing dictionary')
+    LOGGER.info(f'GET /suggest/{dictionary}?prefix={prefix!r}&lang={lang!r}&limit={limit}')
+    reply = await DbDescriptor.suggest(
+        dictionary=dictionary, prefix=prefix, lang=lang, limit=limit or 15)
+    if not reply:
+        raise ApiError(code=404, message='Nothing found')
+    return reply

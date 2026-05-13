@@ -99,7 +99,7 @@ Vrátí jeden deskriptor podle slovníku a klíče. Hledá jak v `key`, tak v `k
 
 ### `GET /descriptor/{dictionary}`
 
-Prohledává slovník — použitelné pro autocomplete. Podporuje fulltext i regex hledání.
+Prohledává slovník s podporou stránkování, fulltext i regex filtrů. Vhodné pro obecné listování; pro typeahead viz `GET /suggest/{dictionary}`.
 
 **Path parametry:**
 
@@ -111,23 +111,47 @@ Prohledává slovník — použitelné pro autocomplete. Podporuje fulltext i re
 
 | Parametr | Typ | Default | Popis |
 |----------|-----|---------|-------|
-| `query` | string | — | Fulltext hledání v hodnotách (`$text`) |
-| `key` | string | — | Regex hledání v `key`, `key_alt` a `values.value` |
+| `query` | string | — | Fulltext hledání (`$text`) — celá slova, nikoliv prefixy |
+| `key` | string | — | Unanchored regex v `key`, `key_alt` a `values.value` |
 | `lang` | string | — | Filtr jazyka hodnot, např. `cs` |
 | `active` | bool | — | `true` = jen aktivní, `false` = jen neaktivní |
 | `skip` | int | `0` | Přeskočit N výsledků |
 | `limit` | int | `10` | Max. počet výsledků |
 
-> **Poznámka:** `query` (fulltext) a `key` (regex) lze kombinovat. `key` prohledává přes `$or` i pole `values.value`, proto výsledky mohou překvapit — např. `?key=A` najde i záznamy, jejichž překlad obsahuje písmeno „a".
+> **Poznámka k `query`:** Parametr `query` používá MongoDB `$text` search, který tokenizuje na celá slova. `?query=Rak` tudíž **nenajde** „Rakousko" — `$text` není vhodný pro živý typeahead. Pro prefix-matching použijte `GET /suggest/{dictionary}`.
 
-**Příklad — autocomplete na „Rak" v češtině:**
-```
-GET /descriptor/country?query=Rak&lang=cs&active=true&limit=10
-```
-
-**Odpověď `200`:** seznam `DescriptorType` objektů (stejná struktura jako u GET jednoho deskriptoru).
+**Odpověď `200`:** seznam `DescriptorType` objektů (stejná struktura jako u GET jednoho deskriptoru), seřazený abecedně podle `key`.
 
 **Chyby:** `404` pokud nic nebylo nalezeno.
+
+---
+
+### `GET /suggest/{dictionary}`
+
+**Dedikovaný typeahead endpoint.** Vrátí deskriptory začínající zadaným prefixem. Používá zakotvený regex `^prefix` pro efektivní využití B-tree indexu. Vždy filtruje pouze aktivní záznamy.
+
+**Path parametry:**
+
+| Parametr | Typ | Popis |
+|----------|-----|-------|
+| `dictionary` | string | Kód řízeného slovníku |
+
+**Query parametry:**
+
+| Parametr | Typ | Default | Povinný | Popis |
+|----------|-----|---------|---------|-------|
+| `prefix` | string | — | ✓ | Předpona pro vyhledání (min. 1 znak) |
+| `lang` | string | — | | Filtrovat hodnoty podle jazyka, např. `cs` |
+| `limit` | int | `15` | | Maximální počet výsledků (1–50) |
+
+**Příklad — typeahead na „Rak":**
+```
+GET /suggest/country?prefix=Rak&lang=cs
+```
+
+**Odpověď `200`:** pole `DescriptorType` objektů seřazených abecedně podle `key`.
+
+**Chyby:** `404` pokud nic nebylo nalezeno, `422` při nevalidních parametrech (chybějící `prefix`, `limit` mimo rozsah 1–50).
 
 ---
 
@@ -305,6 +329,62 @@ Výsledné deskriptory mají vždy `lang="cs"`, `key_alt=""`, `active=true`.
 **Odpověď `200`:** stejná struktura jako `/import`.
 
 **Chyby:** `400` chybějící `dictionary` nebo `value_key_text`.
+
+---
+
+### `POST /import/legacy?replace=false`
+
+Import pole deskriptorů z descriptor-service v1 (starý flat formát s poli `value` a `value_en`). Endpoint transformuje vstup do aktuálního `values` formátu.
+
+**Query parametry:** stejné jako `/import`.
+
+**Tělo požadavku:**
+```json
+[
+  {
+    "dictionary": "country",
+    "key": "CZ",
+    "key_alt": "CZE",
+    "value": "Česká republika",
+    "value_en": "Czech Republic",
+    "active": true
+  }
+]
+```
+
+**Odpověď `200`:** stejná struktura jako `/import`.
+
+**Chyby:** `400` prázdné nebo chybějící tělo.
+
+---
+
+### `POST /import/legacy/file?replace=false`
+
+Import ze souboru NDJSON (JSON Lines) — formát `descriptor-service_1.json`. Přijímá multipart upload; každý řádek je samostatný JSON objekt.
+
+**Query parametry:** stejné jako `/import`.
+
+**Formulář (multipart):**
+
+| Pole | Typ | Popis |
+|------|-----|-------|
+| `file` | `UploadFile` | Soubor `descriptor-service_1.json` |
+
+Endpoint automaticky:
+- Stripuje BOM (`utf-8-sig` dekódování)
+- Ignoruje prázdné řádky
+- Sanitizuje embedded U+FEFF a whitespace v každém záznamu
+
+**Příklad curl:**
+```bash
+curl -X POST "http://localhost:8000/import/legacy/file?replace=false" \
+  -H "X-API-KEY: vas-klic" \
+  -F "file=@data/descriptor-service_1.json"
+```
+
+**Odpověď `200`:** stejná struktura jako `/import`.
+
+**Chyby:** `400` prázdný soubor, nevalidní JSON na konkrétním řádku (s číslem řádku v chybové zprávě), chyba dekódování.
 
 ---
 

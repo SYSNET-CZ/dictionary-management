@@ -57,6 +57,13 @@ class TestCreateQuery:
         assert isinstance(sort, tuple)
         assert len(sort) == 2
 
+    def test_default_sort_is_key_ascending(self):
+        """Výchozí řazení je key ASC — vhodné pro slovníkový výpis a autocomplete."""
+        from beanie import SortDirection
+        query, paging, sort = create_query(dictionary="country")
+        assert sort[0] == 'key'
+        assert sort[1] == SortDirection.ASCENDING
+
     def test_multiple_filters_combined_with_and(self):
         query, paging, sort = create_query(
             dictionary="country", key="AT", active=True, lang="cs"
