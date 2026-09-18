@@ -1,4 +1,4 @@
-﻿# Dictionary management - pokyny pro Claude
+# Dictionary management - pokyny pro Claude
 
 Tento projekt pouziva **Beads** pro rizeni ukolu a projektove pameti misto markdown planu.
 
