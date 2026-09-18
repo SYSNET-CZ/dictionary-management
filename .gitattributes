@@ -1,0 +1,8 @@
+# Normalizace konců řádků — prevence Windows CRLF artefaktů
+* text=auto eol=lf
+
+# Binární soubory — bez konverze
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
