@@ -12,7 +12,9 @@ env:
 jobs:
   test:
     name: Tests
-    runs-on: self-hosted
+    # Veřejný repozitář: self-hosted runner na HERMES VM by spouštěl cizí kód z PR vedle produkčních DB
+    # a skupina runnerů veřejné repozitáře stejně nepřijímá (job zůstával ve frontě).
+    runs-on: ubuntu-latest
     timeout-minutes: 20
 
     services:
@@ -55,7 +57,9 @@ jobs:
 
   build:
     name: Build and push
-    runs-on: self-hosted
+    # Veřejný repozitář: self-hosted runner na HERMES VM by spouštěl cizí kód z PR vedle produkčních DB
+    # a skupina runnerů veřejné repozitáře stejně nepřijímá (job zůstával ve frontě).
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: test
 
